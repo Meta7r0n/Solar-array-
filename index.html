@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Solarpunk Sandbox</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         :root {
             --bg: #1a2639;
@@ -45,7 +46,7 @@
             background: none;
             border: 2px solid transparent;
             padding: 12px 16px;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             border-radius: 25px;
             cursor: pointer;
             color: var(--text);
@@ -53,9 +54,12 @@
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
+            width: 60px;
+            height: 60px;
         }
         .tool-btn:active {
             transform: scale(0.95);
@@ -91,10 +95,21 @@
             padding: 10px 20px;
             border-radius: 20px;
             color: var(--text);
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: 600;
             pointer-events: none;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        #controls-hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.5);
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            color: var(--text);
+            pointer-events: none;
         }
     </style>
 </head>
@@ -106,7 +121,11 @@
         Energy: <span id="val-energy">0</span> / <span id="val-cap">0</span>
     </div>
 
-    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The island is self-sustaining.</span></div>
+    <div id="controls-hint">
+        Drag to Rotate &bull; Pinch to Zoom
+    </div>
+
+    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The grid is self-sustaining.</span></div>
 
     <div id="ui-container">
         <button class="tool-btn active" data-type="solar">☀️</button>
@@ -116,9 +135,10 @@
 
     <script>
         // --- GAME CONFIG & STATE ---
-        const CYCLE_DURATION = 60; // seconds per day/night cycle
+        const CYCLE_DURATION = 60; 
         const GRID_SIZE = 2;
-        const GRID_EXTENT = 8;
+        const ISLAND_SIZE = 40; 
+        const GRID_EXTENT = (ISLAND_SIZE / 2) - 2; // Keep slightly away from absolute edge
         
         const GAME = {
             energy: 0,
@@ -139,11 +159,10 @@
         const colDay = new THREE.Color(0x8bd4e8);
         const colNight = new THREE.Color(0x0a1128);
         scene.background = colDay;
-        scene.fog = new THREE.Fog(colDay, 20, 60);
+        scene.fog = new THREE.Fog(colDay, 30, 100);
 
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 100);
-        camera.position.set(20, 25, 20);
-        camera.lookAt(0, 0, 0);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 150);
+        camera.position.set(30, 35, 30);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -152,20 +171,30 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
+        // --- CAMERA CONTROLS ---
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false; // Keep focus on island
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent viewing from totally underneath
+        controls.minDistance = 15;
+        controls.maxDistance = 80;
+        controls.target.set(0, 0, 0);
+
         // --- LIGHTING ---
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
 
         const sun = new THREE.DirectionalLight(0xfff5b6, 1.5);
         sun.castShadow = true;
-        sun.shadow.mapSize.width = 1024;
-        sun.shadow.mapSize.height = 1024;
+        sun.shadow.mapSize.width = 2048; // Higher res for larger island
+        sun.shadow.mapSize.height = 2048;
         sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 50;
-        sun.shadow.camera.left = -15;
-        sun.shadow.camera.right = 15;
-        sun.shadow.camera.top = 15;
-        sun.shadow.camera.bottom = -15;
+        sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -30;
+        sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30;
+        sun.shadow.camera.bottom = -30;
         sun.shadow.bias = -0.001;
         scene.add(sun);
 
@@ -176,38 +205,37 @@
         const matGrass = new THREE.MeshStandardMaterial({ color: 0x7cb06d, roughness: 0.9 });
         const matDirt = new THREE.MeshStandardMaterial({ color: 0x8c7356, roughness: 1.0 });
         
-        // Floating Island
         const islandGroup = new THREE.Group();
         
-        const topGeo = new THREE.BoxGeometry(20, 1, 20);
+        const topGeo = new THREE.BoxGeometry(ISLAND_SIZE, 1, ISLAND_SIZE);
         const islandTop = new THREE.Mesh(topGeo, matGrass);
         islandTop.position.y = -0.5;
         islandTop.receiveShadow = true;
         islandTop.castShadow = true;
         islandGroup.add(islandTop);
 
-        const baseGeo = new THREE.BoxGeometry(18, 3, 18);
+        const baseGeo = new THREE.BoxGeometry(ISLAND_SIZE - 2, 4, ISLAND_SIZE - 2);
         const islandBase = new THREE.Mesh(baseGeo, matDirt);
-        islandBase.position.y = -2.5;
+        islandBase.position.y = -3;
         islandBase.receiveShadow = true;
         islandBase.castShadow = true;
         islandGroup.add(islandBase);
 
         scene.add(islandGroup);
 
-        // Floating ambient particles (Wind/Spores)
+        // Ambient Spores
         const particleGeo = new THREE.BufferGeometry();
-        const particleCount = 100;
+        const particleCount = 200;
         const posArray = new Float32Array(particleCount * 3);
         for(let i=0; i<particleCount*3; i++) {
-            posArray[i] = (Math.random() - 0.5) * 30;
+            posArray[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
         }
         particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({ size: 0.15, color: 0xffffff, transparent: true, opacity: 0.6 });
+        const particleMat = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.5 });
         const particles = new THREE.Points(particleGeo, particleMat);
         scene.add(particles);
 
-        // --- MATERIALS REUSABLE ---
+        // --- MATERIALS ---
         const matWhite = new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 });
         const matWood = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 });
         const matPanel = new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 });
@@ -239,7 +267,7 @@
 
                 const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), matPanel);
                 panel.position.y = 0.9;
-                panel.rotation.x = Math.PI / 6; // angled up
+                panel.rotation.x = Math.PI / 6;
                 panel.castShadow = true;
 
                 group.add(base, pole, panel);
@@ -257,7 +285,7 @@
                 
                 const coreFill = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16), matBattFill);
                 coreFill.position.y = 0.8;
-                coreFill.scale.y = 0.01; // starts empty
+                coreFill.scale.y = 0.01;
                 
                 group.add(base, coreShell, coreFill);
                 nodeData.fillMesh = coreFill;
@@ -275,8 +303,7 @@
                 const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), matLightOff);
                 bulb.position.y = 2.2;
                 
-                // Add a real point light for visual flair
-                const pLight = new THREE.PointLight(0xffea00, 0, 5);
+                const pLight = new THREE.PointLight(0xffea00, 0, 8);
                 pLight.position.y = 2.2;
 
                 group.add(base, pole, bulb, pLight);
@@ -285,15 +312,17 @@
                 nodeData.isOn = false;
             }
 
-            // Placement animation
             group.scale.set(0, 0, 0);
             scene.add(group);
             GAME.nodes.push(nodeData);
         }
 
-        // --- INTERACTION ---
+        // --- INTERACTION LOGIC (Touch/Click vs Drag) ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+        
+        let pointerDownPos = new THREE.Vector2();
+        let pointerDownTime = 0;
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.addEventListener('pointerdown', (e) => {
@@ -306,6 +335,18 @@
 
         window.addEventListener('pointerdown', (e) => {
             if(e.target.closest('#ui-container')) return;
+            pointerDownPos.set(e.clientX, e.clientY);
+            pointerDownTime = performance.now();
+        });
+
+        window.addEventListener('pointerup', (e) => {
+            if(e.target.closest('#ui-container')) return;
+            
+            const dist = pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
+            const timeDiff = performance.now() - pointerDownTime;
+
+            // Differentiate between Tap (place object) and Drag (camera control)
+            if (dist > 10 || timeDiff > 300) return;
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -315,11 +356,9 @@
 
             if (intersects.length > 0) {
                 const pt = intersects[0].point;
-                // Snap to grid
                 let nx = Math.round(pt.x / GRID_SIZE) * GRID_SIZE;
                 let nz = Math.round(pt.z / GRID_SIZE) * GRID_SIZE;
 
-                // Bounds check
                 if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
                     createNode(GAME.selectedType, nx, nz);
                 }
@@ -334,7 +373,6 @@
 
         // --- SIMULATION LOGIC ---
         const clock = new THREE.Clock();
-
         const uiEnergy = document.getElementById('val-energy');
         const uiCap = document.getElementById('val-cap');
         const uiBanner = document.getElementById('harmony-banner');
@@ -345,7 +383,6 @@
             let capacity = 0;
             let lightCount = 0;
 
-            // Calculate totals
             GAME.nodes.forEach(n => {
                 if(n.type === 'solar') generation += 10 * sunIntensity;
                 if(n.type === 'battery') capacity += 100;
@@ -357,24 +394,19 @@
 
             GAME.capacity = capacity;
             
-            // Apply net energy
             let net = generation - consumption;
             GAME.energy += net * dt;
 
-            // Clamp energy
             if(GAME.energy > GAME.capacity) GAME.energy = GAME.capacity;
             if(GAME.energy < 0) GAME.energy = 0;
 
-            // Determine if grid has power
             let hasPower = GAME.energy > 0 || generation >= consumption;
-            if(GAME.capacity === 0 && generation < consumption) hasPower = false; // No battery buffer, insufficient solar
-            if(lightCount === 0) hasPower = true; // Default state
+            if(GAME.capacity === 0 && generation < consumption) hasPower = false; 
+            if(lightCount === 0) hasPower = true; 
 
-            // Update visuals & states
             GAME.nodes.forEach(n => {
                 if(n.type === 'battery') {
                     let fillRatio = capacity > 0 ? GAME.energy / capacity : 0;
-                    // Smooth visual scaling
                     n.fillMesh.scale.y += (Math.max(0.01, fillRatio) - n.fillMesh.scale.y) * 0.1;
                     n.fillMesh.position.y = 0.2 + (1.2 * n.fillMesh.scale.y) / 2;
                 }
@@ -388,11 +420,9 @@
                 }
             });
 
-            // UI Update
             uiEnergy.innerText = Math.floor(GAME.energy);
             uiCap.innerText = Math.floor(GAME.capacity);
 
-            // Win Condition Check (1 full cycle with lights and no blackouts)
             if(lightCount > 0 && hasPower) {
                 GAME.stableTime += dt;
                 if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) {
@@ -400,33 +430,32 @@
                     uiBanner.style.opacity = 1;
                 }
             } else if (lightCount > 0 && !hasPower) {
-                GAME.stableTime = 0; // Reset if blackout occurs
+                GAME.stableTime = 0; 
             }
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            const dt = Math.min(clock.getDelta(), 0.1); // clamp dt to avoid huge jumps if tab inactive
+            const dt = Math.min(clock.getDelta(), 0.1); 
 
-            // Animate placements
+            controls.update(); // Update orbit controls
+
             GAME.nodes.forEach(n => {
                 if(n.group.scale.x < 1) {
-                    n.group.scale.x += dt * 3;
-                    n.group.scale.y += dt * 3;
-                    n.group.scale.z += dt * 3;
+                    n.group.scale.x += dt * 4;
+                    n.group.scale.y += dt * 4;
+                    n.group.scale.z += dt * 4;
                     if(n.group.scale.x > 1) n.group.scale.set(1,1,1);
                 }
             });
 
-            // Day/Night Cycle
             GAME.time += dt;
             let cycleProgress = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
-            let angle = cycleProgress * Math.PI * 2 - (Math.PI / 2); // Start at morning
+            let angle = cycleProgress * Math.PI * 2 - (Math.PI / 2); 
 
-            // Sun path
-            sun.position.x = Math.cos(angle) * 30;
-            sun.position.y = Math.sin(angle) * 30;
-            sun.position.z = Math.sin(angle) * 10; // slight tilt
+            sun.position.x = Math.cos(angle) * 50;
+            sun.position.y = Math.sin(angle) * 50;
+            sun.position.z = Math.sin(angle) * 15; 
 
             moon.position.x = -sun.position.x;
             moon.position.y = -sun.position.y;
@@ -435,32 +464,28 @@
             let sunHeight = Math.max(0, Math.sin(angle));
             sun.intensity = sunHeight * 1.5;
             
-            // Sky & ambient blending
             let isDay = sun.position.y > 0;
             let targetBg = isDay ? colDay : colNight;
             scene.background.lerp(targetBg, 0.02);
             scene.fog.color.lerp(targetBg, 0.02);
             ambientLight.intensity = isDay ? 0.4 + (sunHeight * 0.2) : 0.2;
 
-            // Make solar panels track sun slightly (aesthetic only)
             GAME.nodes.forEach(n => {
                 if(n.type === 'solar' && isDay) {
                     n.panel.lookAt(sun.position);
                 }
             });
 
-            // Update Systems
             updateEnergySystem(dt, sunHeight);
 
-            // Animate ambient particles
             const positions = particles.geometry.attributes.position.array;
             for(let i=0; i<particleCount; i++) {
                 let y = positions[i*3+1];
                 y += dt * 0.5;
-                if(y > 15) {
+                if(y > 20) {
                     y = -5;
-                    positions[i*3] = (Math.random() - 0.5) * 30;
-                    positions[i*3+2] = (Math.random() - 0.5) * 30;
+                    positions[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
+                    positions[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
                 }
                 positions[i*3+1] = y;
             }
@@ -469,7 +494,6 @@
             renderer.render(scene, camera);
         }
 
-        // Start
         animate();
 
     </script>
