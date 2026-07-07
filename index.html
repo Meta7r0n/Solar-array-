@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - v0.5.1</title>
+    <title>Solarpunk Sandbox - v0.6.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -13,6 +13,7 @@
             --ui-active: #7cb06d;
             --ui-water: #4fa4d1;
             --ui-mech: #d4a373;
+            --ui-chem: #c08552;
             --text: #2c3e50;
         }
         body, html {
@@ -86,6 +87,10 @@
             background: var(--ui-mech);
             box-shadow: 0 4px 15px rgba(212, 163, 115, 0.4);
         }
+        .tool-btn.active[data-type="composter"], .tool-btn.active[data-type="biomass"] {
+            background: var(--ui-chem);
+            box-shadow: 0 4px 15px rgba(192, 133, 82, 0.4);
+        }
         #harmony-banner {
             position: absolute;
             top: 15%;
@@ -123,6 +128,7 @@
         .stat-row { display: flex; align-items: center; gap: 8px; }
         .icon-energy { color: #f39c12; font-size: 1.1rem; }
         .icon-water { color: #3498db; font-size: 1.1rem; }
+        .icon-compost { color: #8b5a2b; font-size: 1.1rem; }
         #controls-hint {
             position: absolute;
             top: 20px;
@@ -149,6 +155,10 @@
             <span class="icon-water">💧</span> 
             <span id="val-water">0</span> / <span id="val-wcap">0</span> L
         </div>
+        <div class="stat-row">
+            <span class="icon-compost">🍂</span> 
+            <span id="val-compost">0</span> / <span id="val-ccap">0</span> kg
+        </div>
     </div>
 
     <div id="controls-hint">Drag to Rotate &bull; Pinch to Zoom</div>
@@ -161,14 +171,15 @@
         // ==========================================
         // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
         // ==========================================
-        const DEV_MODE = false; // Set to true to unlock everything immediately
+        const DEV_MODE = false; 
 
         const DISCIPLINES = {
             MECHANICAL: 'mechanical',       
             ELECTRICAL: 'electrical',       
             CIVIL: 'civil',                 
             ENVIRONMENTAL: 'environmental', 
-            AGRICULTURAL: 'agricultural'
+            AGRICULTURAL: 'agricultural',
+            CHEMISTRY: 'chemistry'
         };
 
         const KNOWLEDGE = {
@@ -179,7 +190,8 @@
             understands_rain: DEV_MODE,          
             understands_agriculture: DEV_MODE,   
             understands_pumping: DEV_MODE,
-            understands_kinetic_energy: DEV_MODE
+            understands_kinetic_energy: DEV_MODE,
+            understands_decay: DEV_MODE // New: Discovered by observing falling leaves
         };
 
         const NODE_REGISTRY = {
@@ -191,7 +203,9 @@
             'garden': { id: 'garden', icon: '🌱', req: ['understands_agriculture'] },
             'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] },
             'wheel': { id: 'wheel', icon: '🎡', req: ['understands_kinetic_energy'] },
-            'pipe': { id: 'pipe', icon: '🛤️', req: ['understands_kinetic_energy'] }
+            'pipe': { id: 'pipe', icon: '🛤️', req: ['understands_kinetic_energy'] },
+            'composter': { id: 'composter', icon: '🍂', req: ['understands_decay'] },
+            'biomass': { id: 'biomass', icon: '🔥', req: ['understands_decay'] }
         };
 
         // ==========================================
@@ -205,11 +219,12 @@
         const GAME = {
             energy: 0, capacity: 0,
             water: 0, waterCapacity: 0,
+            compost: 0, compostCapacity: 0,
             nodes: [], gridMap: new Set(),
             selectedType: 'solar',
             time: 0, stableTime: 0, harmonyReached: false,
             
-            timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0 },
+            timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0, decay: 0 },
             uiRenderedNodes: new Set(),
 
             weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
@@ -312,7 +327,6 @@
         const islandGroup = new THREE.Group();
         const raycastTargets = [];
 
-        // Left Island
         const widthHalf = (ISLAND_SIZE - 4) / 2;
         const leftGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
         const islandLeft = new THREE.Mesh(leftGeo, matGrass);
@@ -321,7 +335,6 @@
         islandGroup.add(islandLeft);
         raycastTargets.push(islandLeft);
 
-        // Right Island
         const rightGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
         const islandRight = new THREE.Mesh(rightGeo, matGrass);
         islandRight.position.set(widthHalf/2 + 2, -2, 0);
@@ -329,13 +342,11 @@
         islandGroup.add(islandRight);
         raycastTargets.push(islandRight);
 
-        // River Bed
         const bedGeo = new THREE.BoxGeometry(4, 3, ISLAND_SIZE);
         const riverBed = new THREE.Mesh(bedGeo, matDirt);
         riverBed.position.set(0, -2.5, 0);
         islandGroup.add(riverBed);
 
-        // River Water Plane
         const riverGeo = new THREE.BoxGeometry(4, 0.8, ISLAND_SIZE);
         const riverMesh = new THREE.Mesh(riverGeo, matRiver);
         riverMesh.position.set(0, -0.6, 0); 
@@ -381,7 +392,10 @@
             turbine: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 }),
             water: new THREE.MeshStandardMaterial({ color: 0x3498db, emissive: 0x3498db, emissiveIntensity: 0.2 }),
             dirt: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1.0 }),
-            plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 })
+            plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 }),
+            leaf: new THREE.MeshStandardMaterial({ color: 0xa8b031, roughness: 0.8 }), // Dying leaf color
+            fireOff: new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }),
+            fireOn: new THREE.MeshStandardMaterial({ color: 0xff5500, emissive: 0xff4400, emissiveIntensity: 1.5 })
         };
 
         // ==========================================
@@ -393,7 +407,6 @@
             GAME.gridMap.add(key);
 
             const group = new THREE.Group();
-            
             const yPos = (x === 0) ? -0.2 : 0; 
             group.position.set(x, yPos, z);
             
@@ -470,6 +483,13 @@
                     p.scale.set(0.1, 0.1, 0.1); p.castShadow = true;
                     group.add(p); node.plants.push(p);
                 }
+                // Falling Leaf Animation Mesh
+                const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.1), mats.leaf);
+                leaf.position.set(0, 1.5, 0);
+                leaf.visible = false;
+                group.add(leaf);
+                node.leaf = leaf;
+                node.leafFallPhase = Math.random(); // offset animations
             }
             else if (type === 'wheel') {
                 const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
@@ -485,12 +505,9 @@
                 
                 for(let i=0; i<6; i++) {
                     const paddle = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), mats.wood);
-                    paddle.position.y = 0.4;
-                    paddle.castShadow = true;
-                    const piv = new THREE.Group();
-                    piv.rotation.x = (i * Math.PI*2)/6;
-                    piv.add(paddle);
-                    rotorGroup.add(piv);
+                    paddle.position.y = 0.4; paddle.castShadow = true;
+                    const piv = new THREE.Group(); piv.rotation.x = (i * Math.PI*2)/6;
+                    piv.add(paddle); rotorGroup.add(piv);
                 }
                 group.add(b1, b2, rotorGroup);
                 node.rotor = rotorGroup;
@@ -505,6 +522,26 @@
                 waterLine.position.y = 0.55;
                 p1.castShadow = p2.castShadow = trough.castShadow = true;
                 group.add(p1, p2, trough, waterLine);
+            }
+            else if (type === 'composter') {
+                const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 1.2), mats.wood);
+                box.position.y = 0.4; box.castShadow = true;
+                const fill = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 1.0), mats.dirt);
+                fill.position.y = 0.4; fill.scale.y = 0.01;
+                group.add(box, fill);
+                node.fillMesh = fill;
+            }
+            else if (type === 'biomass') {
+                const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.4), mats.turbine);
+                base.position.y = 0.6; base.castShadow = true;
+                const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.5), mats.turbine);
+                stack.position.set(0.3, 1.5, -0.3); stack.castShadow = true;
+                const core = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.1), mats.fireOff);
+                core.position.set(0, 0.5, 0.71); // Front face
+                const pLight = new THREE.PointLight(0xff5500, 0, 8);
+                pLight.position.set(0, 0.5, 1.0);
+                group.add(base, stack, core, pLight);
+                node.core = core; node.pLight = pLight; node.isOn = false;
             }
 
             group.scale.set(0, 0, 0);
@@ -556,94 +593,105 @@
         const clock = new THREE.Clock();
         const uiStats = {
             e: document.getElementById('val-energy'), c: document.getElementById('val-cap'),
-            w: document.getElementById('val-water'), wc: document.getElementById('val-wcap')
+            w: document.getElementById('val-water'), wc: document.getElementById('val-wcap'),
+            co: document.getElementById('val-compost'), coc: document.getElementById('val-ccap')
         };
         const uiBanner = document.getElementById('harmony-banner');
 
         function updateSystems(dt, sunIntensity, isDay) {
             let eGen = 0, eCon = 0, eCap = 0, lCount = 0;
             let wGen = 0, wCon = 0, wCap = 0, gCount = 0;
+            let cCap = 0, bCount = 0;
 
             let effSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
             let isRaining = GAME.weather.rainIntensity > 0;
 
-            // 1. Calculate Capacities & Needs
+            // 1. Base Loops (Capacities & Passive Gen)
             GAME.nodes.forEach(n => {
                 if(n.type === 'battery') eCap += 100;
                 if(n.type === 'collector') wCap += 50;
                 if(n.type === 'pipe') wCap += 25; 
+                if(n.type === 'composter') cCap += 50;
                 
                 if(n.type === 'solar') eGen += 10 * effSun;
                 if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
-                
                 if(n.type === 'wheel') wGen += 3; 
 
                 if(n.type === 'light') { eCon += 4; lCount++; }
                 if(n.type === 'garden') { wCon += 2; gCount++; }
+                if(n.type === 'biomass') { bCount++; }
             });
             
-            GAME.capacity = eCap; GAME.waterCapacity = wCap;
+            GAME.capacity = eCap; GAME.waterCapacity = wCap; GAME.compostCapacity = cCap;
 
-            // 2. Resolve Energy
-            let netE = eGen - eCon;
-            GAME.energy = Math.max(0, Math.min(GAME.capacity, GAME.energy + netE * dt));
-            let hasPower = GAME.energy > 0 || eGen >= eCon;
-            if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
-            if(lCount === 0) hasPower = true;
-
-            // 3. Resolve Pumps
+            // 2. Resolve Water
+            let hasPowerForPumpCheck = (GAME.energy > 0 || eGen > 0); // Quick pre-check
             let pumpExists = false;
             GAME.nodes.forEach(n => {
                 if(n.type === 'pump') {
                     pumpExists = true;
                     eCon += 5;
-                    if (hasPower || eGen >= eCon) wGen += 10; 
+                    if (hasPowerForPumpCheck) wGen += 10; 
                 }
                 if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
             });
 
-            // 4. Resolve Water
             let netW = wGen - wCon;
             GAME.water = Math.max(0, Math.min(GAME.waterCapacity, GAME.water + netW * dt));
             let hasWater = GAME.water > 0 || wGen >= wCon;
             if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
             if(gCount === 0) hasWater = true;
 
-            // -- PROGRESSION CHECKS (FIXED LOGIC TRAPS) --
+            // 3. Resolve Compost & Biomass
+            let cGen = (hasWater && gCount > 0) ? (gCount * 1.0) : 0; // Gardens generate waste
+            let cCon = bCount * 2.0; // Biomass burns waste
             
-            // 1. Storage: Observe no power at night
+            let netC = cGen - cCon;
+            GAME.compost = Math.max(0, Math.min(GAME.compostCapacity, GAME.compost + netC * dt));
+            
+            let hasCompost = GAME.compost > 0 || cGen >= cCon;
+            if(GAME.compostCapacity === 0 && cGen < cCon) hasCompost = false;
+
+            if (hasCompost && bCount > 0) {
+                // Biomass acts as a massive emergency generator
+                eGen += bCount * 15.0; 
+            }
+
+            // 4. Resolve Final Energy
+            let netE = eGen - eCon;
+            GAME.energy = Math.max(0, Math.min(GAME.capacity, GAME.energy + netE * dt));
+            let hasPower = GAME.energy > 0 || eGen >= eCon;
+            if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
+            if(lCount === 0) hasPower = true;
+
+            // -- PROGRESSION CHECKS --
             if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
                 GAME.timers.blackout += dt;
                 if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
             }
-            
-            // 2. Wind: Observe cloudy weather (solar drop)
             if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.4) {
                 GAME.timers.wind += dt;
                 if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
             }
-            
-            // 3. Rain: Observe rain
             if (!KNOWLEDGE.understands_rain && isRaining) {
                 GAME.timers.rain += dt;
                 if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
             }
-            
-            // 4. Agriculture: Collector gathers water
             if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
                 KNOWLEDGE.understands_agriculture = true; updateUI();
             }
-            
-            // 5. Pumping: Have a garden, realize river is nearby (Removed drought punishment)
             if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0) {
                 GAME.timers.drought += dt;
                 if (GAME.timers.drought > 5) { KNOWLEDGE.understands_pumping = true; updateUI(); }
             }
-            
-            // 6. Kinetic: Have a pump, realize river has constant flow (Removed blackout punishment)
             if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists) {
                 GAME.timers.river += dt;
                 if (GAME.timers.river > 5) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
+            }
+            // NEW: Observe dying leaves falling from healthy garden to learn about decay
+            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_decay && gCount > 0 && hasWater) {
+                GAME.timers.decay += dt;
+                if (GAME.timers.decay > 6) { KNOWLEDGE.understands_decay = true; updateUI(); }
             }
 
             // Visual Updates
@@ -657,6 +705,19 @@
                     let fill = wCap > 0 ? GAME.water / wCap : 0;
                     n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
                     n.fillMesh.position.y = 0.1 + (0.9 * n.fillMesh.scale.y) / 2;
+                }
+                if(n.type === 'composter') {
+                    let fill = cCap > 0 ? GAME.compost / cCap : 0;
+                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
+                    n.fillMesh.position.y = 0.05 + (0.7 * n.fillMesh.scale.y) / 2;
+                }
+                if(n.type === 'biomass') {
+                    let isBurning = (hasCompost && eCon > 0); // Only burns if there's load and fuel
+                    if(isBurning !== n.isOn) {
+                        n.isOn = isBurning;
+                        n.core.material = isBurning ? mats.fireOn : mats.fireOff;
+                        n.pLight.intensity = isBurning ? 1.5 : 0;
+                    }
                 }
                 if(n.type === 'light') {
                     if(hasPower !== n.isOn) {
@@ -674,11 +735,24 @@
                         p.scale.y = p.scale.z = p.scale.x;
                         p.position.y = 0.2 + (p.scale.y * 0.2); 
                     });
+
+                    // Localized falling leaf animation for discovery
+                    if (hasWater) {
+                        n.leaf.visible = true;
+                        n.leafFallPhase += dt * 0.5; // Controls fall speed
+                        if (n.leafFallPhase > 1) n.leafFallPhase = 0;
+                        n.leaf.position.y = 1.5 - (n.leafFallPhase * 1.4);
+                        n.leaf.rotation.z = Math.sin(n.leafFallPhase * 10) * 0.5;
+                        n.leaf.rotation.x = Math.cos(n.leafFallPhase * 8) * 0.5;
+                    } else {
+                        n.leaf.visible = false;
+                    }
                 }
             });
 
             uiStats.e.innerText = Math.floor(GAME.energy); uiStats.c.innerText = Math.floor(GAME.capacity);
             uiStats.w.innerText = Math.floor(GAME.water); uiStats.wc.innerText = Math.floor(GAME.waterCapacity);
+            uiStats.co.innerText = Math.floor(GAME.compost); uiStats.coc.innerText = Math.floor(GAME.compostCapacity);
 
             if(lCount > 0 && gCount > 0 && hasPower && hasWater) {
                 GAME.stableTime += dt;
