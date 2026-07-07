@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - Kinetic Update</title>
+    <title>Solarpunk Sandbox - v0.5.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -32,27 +32,29 @@
         }
         #ui-container {
             position: absolute;
-            bottom: 30px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 15px;
+            gap: 10px;
             background: var(--ui-bg);
-            padding: 10px 20px;
-            border-radius: 40px;
+            padding: 10px 15px;
+            border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             backdrop-filter: blur(5px);
             z-index: 10;
             max-width: 90%;
+            max-height: 40vh;
+            overflow-y: auto;
         }
         .tool-btn {
             background: none;
             border: 2px solid transparent;
-            padding: 12px 16px;
-            font-size: 1.5rem;
-            border-radius: 25px;
+            padding: 8px;
+            font-size: 1.2rem;
+            border-radius: 20px;
             cursor: pointer;
             color: var(--text);
             font-weight: bold;
@@ -60,8 +62,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
             animation: fadeIn 0.5s forwards ease-out;
@@ -107,8 +109,8 @@
             top: 20px;
             left: 20px;
             background: var(--ui-bg);
-            padding: 15px 20px;
-            border-radius: 20px;
+            padding: 12px 15px;
+            border-radius: 15px;
             color: var(--text);
             font-size: 0.9rem;
             font-weight: 600;
@@ -116,7 +118,7 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
         .stat-row { display: flex; align-items: center; gap: 8px; }
         .icon-energy { color: #f39c12; font-size: 1.1rem; }
@@ -159,6 +161,8 @@
         // ==========================================
         // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
         // ==========================================
+        const DEV_MODE = false; // Set to true to unlock everything immediately
+
         const DISCIPLINES = {
             MECHANICAL: 'mechanical',       
             ELECTRICAL: 'electrical',       
@@ -170,12 +174,12 @@
         const KNOWLEDGE = {
             understands_daylight: true,       
             understands_power_flow: true,     
-            understands_storage: false,       
-            understands_wind: false,          
-            understands_rain: false,          
-            understands_agriculture: false,   
-            understands_pumping: false,
-            understands_kinetic_energy: false // New: Discovered by observing dead pump in river
+            understands_storage: DEV_MODE,       
+            understands_wind: DEV_MODE,          
+            understands_rain: DEV_MODE,          
+            understands_agriculture: DEV_MODE,   
+            understands_pumping: DEV_MODE,
+            understands_kinetic_energy: DEV_MODE
         };
 
         const NODE_REGISTRY = {
@@ -205,7 +209,6 @@
             selectedType: 'solar',
             time: 0, stableTime: 0, harmonyReached: false,
             
-            // Progression Trackers
             timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0 },
             uiRenderedNodes: new Set(),
 
@@ -391,7 +394,6 @@
 
             const group = new THREE.Group();
             
-            // Height adjustment based on placement (river vs land)
             const yPos = (x === 0) ? -0.2 : 0; 
             group.position.set(x, yPos, z);
             
@@ -535,10 +537,9 @@
                 let nz = Math.round(pt.z / GRID_SIZE) * GRID_SIZE;
 
                 if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
-                    // Placement Constraints
                     const isRiverTool = (GAME.selectedType === 'pump' || GAME.selectedType === 'wheel');
-                    if (isRiverTool && nx !== 0) return; // Must be in river
-                    if (!isRiverTool && nx === 0) return; // Must be on land
+                    if (isRiverTool && nx !== 0) return; 
+                    if (!isRiverTool && nx === 0) return; 
                     createNode(GAME.selectedType, nx, nz);
                 }
             }
@@ -570,12 +571,12 @@
             GAME.nodes.forEach(n => {
                 if(n.type === 'battery') eCap += 100;
                 if(n.type === 'collector') wCap += 50;
-                if(n.type === 'pipe') wCap += 25; // Passive water storage buffer
+                if(n.type === 'pipe') wCap += 25; 
                 
                 if(n.type === 'solar') eGen += 10 * effSun;
                 if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
                 
-                if(n.type === 'wheel') wGen += 3; // Steady, free mechanical water
+                if(n.type === 'wheel') wGen += 3; 
 
                 if(n.type === 'light') { eCon += 4; lCount++; }
                 if(n.type === 'garden') { wCon += 2; gCount++; }
@@ -595,7 +596,7 @@
             GAME.nodes.forEach(n => {
                 if(n.type === 'pump') {
                     pumpExists = true;
-                    eCon += 5; // Heavy draw
+                    eCon += 5;
                     if (hasPower || eGen >= eCon) wGen += 10; 
                 }
                 if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
@@ -608,32 +609,41 @@
             if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
             if(gCount === 0) hasWater = true;
 
-            // -- PROGRESSION CHECKS --
+            // -- PROGRESSION CHECKS (FIXED LOGIC TRAPS) --
+            
+            // 1. Storage: Observe no power at night
             if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
                 GAME.timers.blackout += dt;
                 if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
             }
-            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
+            
+            // 2. Wind: Observe cloudy weather (solar drop)
+            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.4) {
                 GAME.timers.wind += dt;
                 if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
             }
+            
+            // 3. Rain: Observe rain
             if (!KNOWLEDGE.understands_rain && isRaining) {
                 GAME.timers.rain += dt;
                 if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
             }
+            
+            // 4. Agriculture: Collector gathers water
             if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
                 KNOWLEDGE.understands_agriculture = true; updateUI();
             }
-            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0 && !hasWater && !isRaining) {
+            
+            // 5. Pumping: Have a garden, realize river is nearby (Removed drought punishment)
+            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0) {
                 GAME.timers.drought += dt;
-                if (GAME.timers.drought > 4) { KNOWLEDGE.understands_pumping = true; updateUI(); }
+                if (GAME.timers.drought > 5) { KNOWLEDGE.understands_pumping = true; updateUI(); }
             }
-            // NEW: Observe dead electrical pump in flowing river to learn kinetic energy
-            if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists && !hasPower) {
+            
+            // 6. Kinetic: Have a pump, realize river has constant flow (Removed blackout punishment)
+            if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists) {
                 GAME.timers.river += dt;
-                if (GAME.timers.river > 4) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
-            } else if (hasPower) {
-                GAME.timers.river = 0; // Reset if power restored
+                if (GAME.timers.river > 5) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
             }
 
             // Visual Updates
@@ -656,7 +666,7 @@
                     }
                 }
                 if(n.type === 'wind') n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
-                if(n.type === 'wheel') n.rotor.rotation.x -= dt * 2; // Constant river flow
+                if(n.type === 'wheel') n.rotor.rotation.x -= dt * 2;
                 if(n.type === 'garden') {
                     n.plants.forEach(p => {
                         let targetScale = hasWater ? 1.0 : 0.1;
@@ -683,13 +693,11 @@
             const dt = Math.min(clock.getDelta(), 0.1); 
             controls.update(); 
 
-            // Weather System
             GAME.time += dt;
             GAME.weather.cloudCover = (Math.sin(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 22) + 1) / 2; 
             GAME.weather.windSpeed = ((Math.cos(GAME.time / 8) + 1) / 2 * (Math.sin(GAME.time / 15) + 1) / 2) * 0.9 + 0.1;
             GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
 
-            // Spawn Anims
             GAME.nodes.forEach(n => {
                 if(n.group.scale.x < 1) {
                     let s = n.group.scale.x + dt * 4;
@@ -698,7 +706,6 @@
                 }
             });
 
-            // Sky & Sun
             let cycle = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
             let angle = cycle * Math.PI * 2 - (Math.PI / 2); 
             sun.position.set(Math.cos(angle)*50, Math.sin(angle)*50, Math.sin(angle)*15); 
@@ -718,7 +725,6 @@
 
             updateSystems(dt, sHeight, isDay);
 
-            // Particles
             const sPos = particlesSpore.geometry.attributes.position.array;
             const rPos = particlesRain.geometry.attributes.position.array;
             
