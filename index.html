@@ -2,758 +2,673 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - v0.5.1</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solarpunk Island Colony</title>
     <style>
-        :root {
-            --bg: #1a2639;
-            --ui-bg: rgba(255, 255, 255, 0.85);
-            --ui-active: #7cb06d;
-            --ui-water: #4fa4d1;
-            --ui-mech: #d4a373;
-            --text: #2c3e50;
-        }
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none;
-        }
-        #canvas-container {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        #ui-container {
-            position: absolute;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            background: var(--ui-bg);
-            padding: 10px 15px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            backdrop-filter: blur(5px);
-            z-index: 10;
-            max-width: 90%;
-            max-height: 40vh;
-            overflow-y: auto;
-        }
-        .tool-btn {
-            background: none;
-            border: 2px solid transparent;
-            padding: 8px;
-            font-size: 1.2rem;
-            border-radius: 20px;
-            cursor: pointer;
-            color: var(--text);
-            font-weight: bold;
-            transition: all 0.4s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 50px;
-            height: 50px;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            animation: fadeIn 0.5s forwards ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px) scale(0.9); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .tool-btn:active { transform: scale(0.95); }
-        .tool-btn.active {
-            background: var(--ui-active);
-            color: white;
-            box-shadow: 0 4px 15px rgba(124, 176, 109, 0.4);
-        }
-        .tool-btn.active[data-type="pump"], .tool-btn.active[data-type="collector"] {
-            background: var(--ui-water);
-            box-shadow: 0 4px 15px rgba(79, 164, 209, 0.4);
-        }
-        .tool-btn.active[data-type="wheel"], .tool-btn.active[data-type="pipe"] {
-            background: var(--ui-mech);
-            box-shadow: 0 4px 15px rgba(212, 163, 115, 0.4);
-        }
-        #harmony-banner {
-            position: absolute;
-            top: 15%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.95);
-            color: #7cb06d;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            box-shadow: 0 10px 30px rgba(124, 176, 109, 0.3);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 2s ease-in-out;
-            z-index: 20;
-            text-align: center;
-        }
-        #status-bar {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: var(--ui-bg);
-            padding: 12px 15px;
-            border-radius: 15px;
-            color: var(--text);
-            font-size: 0.9rem;
-            font-weight: 600;
-            pointer-events: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .stat-row { display: flex; align-items: center; gap: 8px; }
-        .icon-energy { color: #f39c12; font-size: 1.1rem; }
-        .icon-water { color: #3498db; font-size: 1.1rem; }
-        #controls-hint {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255,255,255,0.5);
-            padding: 8px 15px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            color: var(--text);
-            pointer-events: none;
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        #game-canvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* UI Layer */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        .panel { background: rgba(255, 255, 255, 0.85); border-radius: 12px; padding: 15px; margin: 15px; pointer-events: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); backdrop-filter: blur(4px); }
+        
+        #top-bar { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        #colony-stats { width: 250px; }
+        #colony-stats h2 { margin: 0 0 10px 0; color: #2E8B57; font-size: 1.2rem; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; color: #333; }
+        
+        #inventory-panel { width: 200px; }
+        #inventory-panel h3 { margin: 0 0 10px 0; color: #D2691E; font-size: 1.1rem; }
+        #inventory-list { list-style: none; padding: 0; margin: 0; }
+        #inventory-list li { display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 4px 0; }
+        
+        #action-prompt { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 20px; font-size: 1.2rem; display: none; text-align: center; }
+        
+        #notification-area { position: absolute; bottom: 20px; right: 20px; width: 300px; display: flex; flex-direction: column; gap: 10px; }
+        .notification { background: rgba(46, 139, 87, 0.9); color: white; padding: 10px; border-radius: 8px; animation: fadeout 4s forwards; }
+        
+        @keyframes fadeout {
+            0% { opacity: 1; transform: translateY(0); }
+            70% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(10px); }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-
-    <div id="canvas-container"></div>
-    
-    <div id="status-bar">
-        <div class="stat-row">
-            <span class="icon-energy">⚡</span> 
-            <span id="val-energy">0</span> / <span id="val-cap">0</span> kWh
+    <div id="game-canvas"></div>
+    <div id="ui-layer">
+        <div id="top-bar">
+            <div id="colony-stats" class="panel">
+                <h2>Island Status</h2>
+                <div class="stat-row"><span>Day:</span> <span id="ui-day">1</span></div>
+                <div class="stat-row"><span>Time:</span> <span id="ui-time">08:00</span></div>
+                <div class="stat-row"><span>Population:</span> <span id="ui-pop">1</span></div>
+                <div class="stat-row"><span>Weather:</span> <span id="ui-weather">Clear</span></div>
+            </div>
+            <div id="inventory-panel" class="panel">
+                <h3>Inventory</h3>
+                <ul id="inventory-list"></ul>
+            </div>
         </div>
-        <div class="stat-row">
-            <span class="icon-water">💧</span> 
-            <span id="val-water">0</span> / <span id="val-wcap">0</span> L
-        </div>
+        <div id="action-prompt">Press E to Interact</div>
+        <div id="notification-area"></div>
     </div>
 
-    <div id="controls-hint">Drag to Rotate &bull; Pinch to Zoom</div>
+<script>
+/**
+ * TROPICAL ISLAND COLONY SURVIVAL
+ * Architecture: Modular Manager Pattern (Fixed Initialization Order)
+ */
 
-    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The biome is self-sustaining.</span></div>
+// ==========================================
+// 1. REGISTRIES & DATABASES
+// ==========================================
+const DATABASES = {
+    Resources: {
+        'banana': { id: 'banana', name: 'Banana', type: 'food', nutrition: 15, seedYield: 'banana_seed' },
+        'banana_seed': { id: 'banana_seed', name: 'Banana Seed', type: 'seed', growsInto: 'banana_plant' },
+        'sweet_potato': { id: 'sweet_potato', name: 'Sweet Potato', type: 'food', nutrition: 20, seedYield: 'sp_seed' },
+        'sp_seed': { id: 'sp_seed', name: 'Sweet Potato Slip', type: 'seed', growsInto: 'sp_plant' },
+        'wood': { id: 'wood', name: 'Driftwood', type: 'material' },
+        'fruit_salad': { id: 'fruit_salad', name: 'Fruit Salad', type: 'food', nutrition: 40 }
+    },
+    Crops: {
+        'banana_plant': { id: 'banana_plant', name: 'Banana Tree', yieldId: 'banana', yieldMin: 1, yieldMax: 3, growTime: 30, stages: 3 },
+        'sp_plant': { id: 'sp_plant', name: 'Sweet Potato Patch', yieldId: 'sweet_potato', yieldMin: 2, yieldMax: 4, growTime: 20, stages: 3 }
+    },
+    Recipes: {
+        'fruit_salad': { id: 'fruit_salad', name: 'Fruit Salad', ingredients: { 'banana': 2 }, result: 'fruit_salad', cookTime: 2 }
+    }
+};
 
-    <div id="ui-container"></div>
+// ==========================================
+// 2. MANAGERS
+// ==========================================
 
-    <script>
-        // ==========================================
-        // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
-        // ==========================================
-        const DEV_MODE = false; // Set to true to unlock everything immediately
+class ResourceManager {
+    static getResource(id) { return DATABASES.Resources[id]; }
+    static getCrop(id) { return DATABASES.Crops[id]; }
+    static getRecipe(id) { return DATABASES.Recipes[id]; }
+}
 
-        const DISCIPLINES = {
-            MECHANICAL: 'mechanical',       
-            ELECTRICAL: 'electrical',       
-            CIVIL: 'civil',                 
-            ENVIRONMENTAL: 'environmental', 
-            AGRICULTURAL: 'agricultural'
+class UIManager {
+    constructor() {
+        this.els = {
+            day: document.getElementById('ui-day'),
+            time: document.getElementById('ui-time'),
+            pop: document.getElementById('ui-pop'),
+            weather: document.getElementById('ui-weather'),
+            inv: document.getElementById('inventory-list'),
+            prompt: document.getElementById('action-prompt'),
+            notifications: document.getElementById('notification-area')
         };
-
-        const KNOWLEDGE = {
-            understands_daylight: true,       
-            understands_power_flow: true,     
-            understands_storage: DEV_MODE,       
-            understands_wind: DEV_MODE,          
-            understands_rain: DEV_MODE,          
-            understands_agriculture: DEV_MODE,   
-            understands_pumping: DEV_MODE,
-            understands_kinetic_energy: DEV_MODE
-        };
-
-        const NODE_REGISTRY = {
-            'solar': { id: 'solar', icon: '☀️', req: ['understands_daylight'] },
-            'light': { id: 'light', icon: '💡', req: ['understands_power_flow'] },
-            'battery': { id: 'battery', icon: '🔋', req: ['understands_storage'] },
-            'wind': { id: 'wind', icon: '🌀', req: ['understands_wind'] },
-            'collector': { id: 'collector', icon: '🪣', req: ['understands_rain'] },
-            'garden': { id: 'garden', icon: '🌱', req: ['understands_agriculture'] },
-            'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] },
-            'wheel': { id: 'wheel', icon: '🎡', req: ['understands_kinetic_energy'] },
-            'pipe': { id: 'pipe', icon: '🛤️', req: ['understands_kinetic_energy'] }
-        };
-
-        // ==========================================
-        // 🎮 GAME STATE
-        // ==========================================
-        const CYCLE_DURATION = 60; 
-        const GRID_SIZE = 2;
-        const ISLAND_SIZE = 40; 
-        const GRID_EXTENT = (ISLAND_SIZE / 2) - 2;
-        
-        const GAME = {
-            energy: 0, capacity: 0,
-            water: 0, waterCapacity: 0,
-            nodes: [], gridMap: new Set(),
-            selectedType: 'solar',
-            time: 0, stableTime: 0, harmonyReached: false,
-            
-            timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0 },
-            uiRenderedNodes: new Set(),
-
-            weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
-        };
-
-        // ==========================================
-        // 🖥️ UI & DISCOVERY SYSTEM
-        // ==========================================
-        const uiContainer = document.getElementById('ui-container');
-
-        function updateUI() {
-            let selectedTypeExists = false;
-            for (const [key, node] of Object.entries(NODE_REGISTRY)) {
-                const hasKnowledge = node.req.every(req => KNOWLEDGE[req]);
-                
-                if (hasKnowledge && !GAME.uiRenderedNodes.has(key)) {
-                    const btn = document.createElement('button');
-                    btn.className = 'tool-btn';
-                    btn.dataset.type = key;
-                    btn.innerHTML = node.icon;
-                    
-                    if (GAME.uiRenderedNodes.size === 0) {
-                        btn.classList.add('active');
-                        GAME.selectedType = key;
-                    }
-
-                    btn.addEventListener('pointerdown', (e) => {
-                        e.stopPropagation();
-                        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
-                        GAME.selectedType = key;
-                    });
-
-                    uiContainer.appendChild(btn);
-                    GAME.uiRenderedNodes.add(key);
-                }
-                if (key === GAME.selectedType && hasKnowledge) selectedTypeExists = true;
-            }
-            if (!selectedTypeExists && GAME.uiRenderedNodes.size > 0) {
-                const firstBtn = uiContainer.querySelector('.tool-btn');
-                if(firstBtn) {
-                    firstBtn.classList.add('active');
-                    GAME.selectedType = firstBtn.dataset.type;
-                }
+    }
+    
+    updateTime(day, hour, minute) {
+        this.els.day.innerText = day;
+        this.els.time.innerText = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    }
+    
+    updateStats(population, weather) {
+        this.els.pop.innerText = population;
+        this.els.weather.innerText = weather;
+    }
+    
+    updateInventory(inventoryMap) {
+        this.els.inv.innerHTML = '';
+        for (const [id, qty] of inventoryMap.entries()) {
+            if (qty > 0) {
+                const res = ResourceManager.getResource(id);
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${res.name}</span> <span>${qty}</span>`;
+                this.els.inv.appendChild(li);
             }
         }
-        updateUI();
+    }
 
-        // ==========================================
-        // 🌍 THREE.JS SETUP & ENGINE
-        // ==========================================
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        
-        const colDayClear = new THREE.Color(0x8bd4e8);
-        const colDayCloud = new THREE.Color(0x708090);
-        const colNight = new THREE.Color(0x0a1128);
-        
-        scene.background = colDayClear.clone();
-        scene.fog = new THREE.Fog(colDayClear.clone(), 30, 100);
+    showPrompt(text) {
+        this.els.prompt.style.display = 'block';
+        this.els.prompt.innerText = text;
+    }
 
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 150);
-        camera.position.set(35, 40, 35);
+    hidePrompt() {
+        this.els.prompt.style.display = 'none';
+    }
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        container.appendChild(renderer.domElement);
+    notify(message) {
+        const div = document.createElement('div');
+        div.className = 'notification';
+        div.innerText = message;
+        this.els.notifications.appendChild(div);
+        setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 4000);
+    }
+}
 
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.enablePan = false; 
-        controls.maxPolarAngle = Math.PI / 2 - 0.05; 
-        controls.minDistance = 15;
-        controls.maxDistance = 80;
-        controls.target.set(0, 0, 0);
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambientLight);
-        const sun = new THREE.DirectionalLight(0xfff5b6, 1.5);
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 2048; 
-        sun.shadow.mapSize.height = 2048;
-        sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 100;
-        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
-        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
-        sun.shadow.bias = -0.001;
-        scene.add(sun);
-        const moon = new THREE.DirectionalLight(0x7c9bc2, 0.2);
-        scene.add(moon);
-
-        // --- TERRAFORMING (Split Island & River) ---
-        const matGrass = new THREE.MeshStandardMaterial({ color: 0x7cb06d, roughness: 0.9 });
-        const matDirt = new THREE.MeshStandardMaterial({ color: 0x8c7356, roughness: 1.0 });
-        const matRiver = new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.8, roughness: 0.1 });
-        
-        const islandGroup = new THREE.Group();
-        const raycastTargets = [];
-
-        // Left Island
-        const widthHalf = (ISLAND_SIZE - 4) / 2;
-        const leftGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
-        const islandLeft = new THREE.Mesh(leftGeo, matGrass);
-        islandLeft.position.set(-widthHalf/2 - 2, -2, 0);
-        islandLeft.receiveShadow = true; islandLeft.castShadow = true;
-        islandGroup.add(islandLeft);
-        raycastTargets.push(islandLeft);
-
-        // Right Island
-        const rightGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
-        const islandRight = new THREE.Mesh(rightGeo, matGrass);
-        islandRight.position.set(widthHalf/2 + 2, -2, 0);
-        islandRight.receiveShadow = true; islandRight.castShadow = true;
-        islandGroup.add(islandRight);
-        raycastTargets.push(islandRight);
-
-        // River Bed
-        const bedGeo = new THREE.BoxGeometry(4, 3, ISLAND_SIZE);
-        const riverBed = new THREE.Mesh(bedGeo, matDirt);
-        riverBed.position.set(0, -2.5, 0);
-        islandGroup.add(riverBed);
-
-        // River Water Plane
-        const riverGeo = new THREE.BoxGeometry(4, 0.8, ISLAND_SIZE);
-        const riverMesh = new THREE.Mesh(riverGeo, matRiver);
-        riverMesh.position.set(0, -0.6, 0); 
-        riverMesh.receiveShadow = true;
-        islandGroup.add(riverMesh);
-        raycastTargets.push(riverMesh); 
-
-        scene.add(islandGroup);
-
-        // --- PARTICLES (Wind/Spores & Rain) ---
-        const pCount = 200;
-        const sporeGeo = new THREE.BufferGeometry();
-        const sporePos = new Float32Array(pCount * 3);
-        const rainGeo = new THREE.BufferGeometry();
-        const rainPos = new Float32Array(pCount * 3);
-
-        for(let i=0; i<pCount*3; i++) {
-            sporePos[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
-            rainPos[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+class InventoryManager {
+    constructor() {
+        this.items = new Map();
+    }
+    add(id, qty = 1) {
+        const current = this.items.get(id) || 0;
+        this.items.set(id, current + qty);
+        engine.ui.updateInventory(this.items);
+    }
+    remove(id, qty = 1) {
+        const current = this.items.get(id) || 0;
+        if (current >= qty) {
+            this.items.set(id, current - qty);
+            engine.ui.updateInventory(this.items);
+            return true;
         }
-        sporeGeo.setAttribute('position', new THREE.BufferAttribute(sporePos, 3));
-        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-
-        const matSpore = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
-        const matRain = new THREE.PointsMaterial({ size: 0.15, color: 0x8bd4e8, transparent: true, opacity: 0 }); 
-        
-        const particlesSpore = new THREE.Points(sporeGeo, matSpore);
-        const particlesRain = new THREE.Points(rainGeo, matRain);
-        scene.add(particlesSpore);
-        scene.add(particlesRain);
-
-
-        // --- NODE MATERIALS ---
-        const mats = {
-            white: new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 }),
-            wood: new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 }),
-            darkWood: new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 }),
-            panel: new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 }),
-            battEmpty: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }),
-            battFill: new THREE.MeshStandardMaterial({ color: 0x4caf50, emissive: 0x4caf50, emissiveIntensity: 0.2 }),
-            lightOff: new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 }),
-            lightOn: new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 }),
-            turbine: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 }),
-            water: new THREE.MeshStandardMaterial({ color: 0x3498db, emissive: 0x3498db, emissiveIntensity: 0.2 }),
-            dirt: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1.0 }),
-            plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 })
-        };
-
-        // ==========================================
-        // 🏗️ BUILDING FACTORY
-        // ==========================================
-        function createNode(type, x, z) {
-            const key = `${x},${z}`;
-            if(GAME.gridMap.has(key)) return;
-            GAME.gridMap.add(key);
-
-            const group = new THREE.Group();
-            
-            const yPos = (x === 0) ? -0.2 : 0; 
-            group.position.set(x, yPos, z);
-            
-            let node = { type, group, x, z };
-
-            if(type === 'solar') {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), mats.white);
-                const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), mats.white);
-                const pan = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), mats.panel);
-                b.position.y = 0.1; p.position.y = 0.5; pan.position.y = 0.9; pan.rotation.x = Math.PI / 6;
-                b.castShadow = p.castShadow = pan.castShadow = true;
-                group.add(b, p, pan);
-                node.panel = pan;
-            } 
-            else if(type === 'battery') {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.4), mats.white);
-                const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16), mats.battEmpty);
-                const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16), mats.battFill);
-                b.position.y = 0.1; shell.position.y = 0.8; fill.position.y = 0.8; fill.scale.y = 0.01;
-                b.castShadow = shell.castShadow = true;
-                group.add(b, shell, fill);
-                node.fillMesh = fill;
-            }
-            else if(type === 'light') {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), mats.wood);
-                const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), mats.wood);
-                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), mats.lightOff);
-                const pLight = new THREE.PointLight(0xffea00, 0, 8);
-                b.position.y = 0.1; p.position.y = 1.1; bulb.position.y = pLight.position.y = 2.2;
-                b.castShadow = p.castShadow = true;
-                group.add(b, p, bulb, pLight);
-                node.bulb = bulb; node.pLight = pLight; node.isOn = false;
-            }
-            else if(type === 'wind') {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), mats.turbine);
-                const t = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4, 8), mats.turbine);
-                const nac = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.8), mats.turbine);
-                b.position.y = 0.15; t.position.y = 2.3; nac.position.set(0, 4.3, -0.2);
-                const rGroup = new THREE.Group(); rGroup.position.set(0, 4.3, 0.2);
-                rGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), mats.turbine));
-                for(let i=0; i<3; i++) {
-                    const bl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), mats.turbine);
-                    bl.position.y = 0.9; bl.castShadow = true;
-                    const piv = new THREE.Group(); piv.rotation.z = (i * Math.PI*2)/3;
-                    piv.add(bl); rGroup.add(piv);
-                }
-                b.castShadow = t.castShadow = nac.castShadow = true;
-                group.add(b, t, nac, rGroup);
-                node.rotor = rGroup; rGroup.rotation.z = Math.random() * Math.PI;
-            }
-            else if (type === 'collector') {
-                const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.5, 1.0, 12), mats.wood);
-                const wFill = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.9, 12), mats.water);
-                barrel.position.y = 0.5; wFill.position.y = 0.5; wFill.scale.y = 0.01;
-                barrel.castShadow = true;
-                group.add(barrel, wFill);
-                node.fillMesh = wFill;
-            }
-            else if (type === 'pump') {
-                const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), mats.white);
-                const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.5), mats.white);
-                b.position.y = 0.25; pipe.position.y = 1.0; pipe.rotation.x = Math.PI/4;
-                b.castShadow = pipe.castShadow = true;
-                group.add(b, pipe);
-            }
-            else if (type === 'garden') {
-                const dirt = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 1.8), mats.dirt);
-                dirt.position.y = 0.1; dirt.castShadow = dirt.receiveShadow = true;
-                group.add(dirt);
-                node.plants = [];
-                for(let i=0; i<4; i++) {
-                    const p = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), mats.plant);
-                    p.position.set((Math.random()-0.5)*1.2, 0.2, (Math.random()-0.5)*1.2);
-                    p.scale.set(0.1, 0.1, 0.1); p.castShadow = true;
-                    group.add(p); node.plants.push(p);
-                }
-            }
-            else if (type === 'wheel') {
-                const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
-                const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
-                b1.position.set(-0.8, 0.3, 0); b2.position.set(0.8, 0.3, 0);
-                b1.castShadow = b2.castShadow = true;
-                
-                const rotorGroup = new THREE.Group();
-                rotorGroup.position.set(0, 0.3, 0);
-                const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.8), mats.darkWood);
-                axle.rotation.z = Math.PI/2;
-                rotorGroup.add(axle);
-                
-                for(let i=0; i<6; i++) {
-                    const paddle = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), mats.wood);
-                    paddle.position.y = 0.4;
-                    paddle.castShadow = true;
-                    const piv = new THREE.Group();
-                    piv.rotation.x = (i * Math.PI*2)/6;
-                    piv.add(paddle);
-                    rotorGroup.add(piv);
-                }
-                group.add(b1, b2, rotorGroup);
-                node.rotor = rotorGroup;
-            }
-            else if (type === 'pipe') {
-                const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), mats.darkWood);
-                const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), mats.darkWood);
-                p1.position.set(0, 0.2, -0.6); p2.position.set(0, 0.2, 0.6);
-                const trough = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 1.8), mats.wood);
-                trough.position.y = 0.55;
-                const waterLine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 1.8), mats.water);
-                waterLine.position.y = 0.55;
-                p1.castShadow = p2.castShadow = trough.castShadow = true;
-                group.add(p1, p2, trough, waterLine);
-            }
-
-            group.scale.set(0, 0, 0);
-            scene.add(group);
-            GAME.nodes.push(node);
+        return false;
+    }
+    has(id, qty = 1) {
+        return (this.items.get(id) || 0) >= qty;
+    }
+    getAllFood() {
+        let foods = [];
+        for (const [id, qty] of this.items.entries()) {
+            if (qty > 0 && ResourceManager.getResource(id).type === 'food') foods.push({ id, qty });
         }
+        return foods;
+    }
+}
 
-        // --- INTERACTION ---
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let pDown = new THREE.Vector2(), pTime = 0;
-
-        window.addEventListener('pointerdown', (e) => {
-            if(e.target.closest('#ui-container')) return;
-            pDown.set(e.clientX, e.clientY); pTime = performance.now();
+class VillagerManager {
+    constructor() {
+        this.villagers = [];
+    }
+    init() {
+        this.addVillager("Player");
+    }
+    addVillager(name = "Survivor") {
+        this.villagers.push({
+            name: name,
+            hunger: 100,
+            health: 100,
+            state: 'idle'
         });
-
-        window.addEventListener('pointerup', (e) => {
-            if(e.target.closest('#ui-container')) return;
-            if (pDown.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 10 || performance.now() - pTime > 300) return;
-
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            
-            const intersects = raycaster.intersectObjects(raycastTargets);
-            if (intersects.length > 0) {
-                let pt = intersects[0].point;
-                let nx = Math.round(pt.x / GRID_SIZE) * GRID_SIZE;
-                let nz = Math.round(pt.z / GRID_SIZE) * GRID_SIZE;
-
-                if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
-                    const isRiverTool = (GAME.selectedType === 'pump' || GAME.selectedType === 'wheel');
-                    if (isRiverTool && nx !== 0) return; 
-                    if (!isRiverTool && nx === 0) return; 
-                    createNode(GAME.selectedType, nx, nz);
+        if (engine && engine.ui) engine.ui.updateStats(this.villagers.length, engine.weather.current);
+    }
+    tickDailyFood() {
+        engine.ui.notify("The colony consumes daily food.");
+        for (let v of this.villagers) {
+            let foods = engine.inventory.getAllFood();
+            if (foods.length > 0) {
+                engine.inventory.remove(foods[0].id, 1);
+                v.hunger = 100;
+            } else {
+                v.hunger -= 30;
+                engine.ui.notify(`Warning: ${v.name} is starving!`);
+                if(v.hunger <= 0) {
+                    engine.ui.notify(`Tragedy: ${v.name} has died of starvation.`);
                 }
+            }
+        }
+    }
+}
+
+class WeatherManager {
+    constructor() {
+        this.current = "Clear";
+        this.timeSinceLastStorm = 0;
+        this.stormDuration = 0;
+    }
+    update(dt) {
+        if (this.current === "Clear") {
+            this.timeSinceLastStorm += dt;
+            if (this.timeSinceLastStorm > 120 && Math.random() < 0.001) {
+                this.startStorm();
+            }
+        } else if (this.current === "Storm") {
+            this.stormDuration -= dt;
+            if (this.stormDuration <= 0) {
+                this.endStorm();
+            }
+        }
+    }
+    startStorm() {
+        this.current = "Storm";
+        this.timeSinceLastStorm = 0;
+        this.stormDuration = 30;
+        engine.ui.updateStats(engine.villagers.villagers.length, this.current);
+        engine.ui.notify("A violent storm approaches!");
+    }
+    endStorm() {
+        this.current = "Clear";
+        engine.ui.updateStats(engine.villagers.villagers.length, this.current);
+        engine.ui.notify("The storm has passed. Check the beaches.");
+        engine.shipwreck.triggerShipwreckEvent();
+    }
+}
+
+class ShipwreckManager {
+    triggerShipwreckEvent() {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 35;
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        
+        engine.world.spawnInteractable(x, z, 'shipwreck', {
+            label: "Rescue Survivor [E]",
+            onInteract: (obj) => {
+                engine.villagers.addVillager();
+                engine.ui.notify("You rescued a survivor! Population increased. Daily food demand increased.");
+                engine.world.removeInteractable(obj);
             }
         });
+        engine.ui.notify("Debris spotted on the horizon...");
+    }
+}
 
+class FarmingManager {
+    constructor() {
+        this.crops = [];
+    }
+    plant(x, z, cropId) {
+        const cropData = ResourceManager.getCrop(cropId);
+        const mesh = engine.rendering.createCropMesh();
+        mesh.position.set(x, 0.5, z);
+        
+        const crop = {
+            id: cropId,
+            mesh: mesh,
+            age: 0,
+            stage: 0,
+            maxStages: cropData.stages,
+            ready: false
+        };
+        
+        this.crops.push(crop);
+        engine.rendering.scene.add(mesh);
+        engine.ui.notify(`Planted ${cropData.name}`);
+    }
+    update(dt) {
+        for (let crop of this.crops) {
+            if (crop.ready) continue;
+            crop.age += dt;
+            const data = ResourceManager.getCrop(crop.id);
+            const stageTime = data.growTime / data.stages;
+            
+            if (crop.age > stageTime * (crop.stage + 1)) {
+                crop.stage++;
+                crop.mesh.scale.set(1 + crop.stage*0.5, 1 + crop.stage*0.5, 1 + crop.stage*0.5);
+                
+                if (crop.stage >= data.stages) {
+                    crop.ready = true;
+                    engine.world.spawnInteractable(crop.mesh.position.x, crop.mesh.position.z, 'harvestable', {
+                        label: `Harvest ${data.name} [E]`,
+                        mesh: crop.mesh,
+                        onInteract: (obj) => {
+                            const yieldAmt = Math.floor(Math.random() * (data.yieldMax - data.yieldMin + 1)) + data.yieldMin;
+                            engine.inventory.add(data.yieldId, yieldAmt);
+                            engine.inventory.add(ResourceManager.getResource(data.yieldId).seedYield, 1);
+                            engine.ui.notify(`Harvested ${yieldAmt} ${ResourceManager.getResource(data.yieldId).name}`);
+                            engine.world.removeInteractable(obj);
+                            this.crops = this.crops.filter(c => c !== crop);
+                        }
+                    }, true);
+                }
+            }
+        }
+    }
+}
+
+class CookingManager {
+    cook(recipeId) {
+        const recipe = ResourceManager.getRecipe(recipeId);
+        let canCook = true;
+        for (const [ingId, qty] of Object.entries(recipe.ingredients)) {
+            if (!engine.inventory.has(ingId, qty)) canCook = false;
+        }
+        
+        if (canCook) {
+            for (const [ingId, qty] of Object.entries(recipe.ingredients)) {
+                engine.inventory.remove(ingId, qty);
+            }
+            engine.inventory.add(recipe.result, 1);
+            engine.ui.notify(`Cooked 1 ${recipe.name}`);
+        } else {
+            engine.ui.notify(`Cannot cook ${recipe.name}. Missing ingredients.`);
+        }
+    }
+}
+
+// ==========================================
+// 3. ENGINE & RENDERING
+// ==========================================
+
+class RenderingManager {
+    constructor() {
+        this.scene = new THREE.Scene();
+        // Set an explicit background color immediately to prevent the black screen!
+        this.scene.background = new THREE.Color(0x87CEEB); 
+        this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.015);
+
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera.position.set(0, 15, 20);
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        document.getElementById('game-canvas').appendChild(this.renderer.domElement);
+
+        this.setupLighting();
+        
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
+    }
 
-        // ==========================================
-        // ⚙️ SIMULATION LOGIC
-        // ==========================================
-        const clock = new THREE.Clock();
-        const uiStats = {
-            e: document.getElementById('val-energy'), c: document.getElementById('val-cap'),
-            w: document.getElementById('val-water'), wc: document.getElementById('val-wcap')
-        };
-        const uiBanner = document.getElementById('harmony-banner');
+    setupLighting() {
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(ambient);
 
-        function updateSystems(dt, sunIntensity, isDay) {
-            let eGen = 0, eCon = 0, eCap = 0, lCount = 0;
-            let wGen = 0, wCon = 0, wCap = 0, gCount = 0;
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.sunLight.position.set(50, 100, 50);
+        this.sunLight.castShadow = true;
+        this.scene.add(this.sunLight);
+    }
 
-            let effSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
-            let isRaining = GAME.weather.rainIntensity > 0;
+    createIsland() {
+        const oceanGeo = new THREE.PlaneGeometry(500, 500);
+        const oceanMat = new THREE.MeshPhongMaterial({ color: 0x1ca3ec, transparent: true, opacity: 0.8 });
+        const ocean = new THREE.Mesh(oceanGeo, oceanMat);
+        ocean.rotation.x = -Math.PI / 2;
+        ocean.position.y = -0.5;
+        this.scene.add(ocean);
 
-            // 1. Calculate Capacities & Needs
-            GAME.nodes.forEach(n => {
-                if(n.type === 'battery') eCap += 100;
-                if(n.type === 'collector') wCap += 50;
-                if(n.type === 'pipe') wCap += 25; 
-                
-                if(n.type === 'solar') eGen += 10 * effSun;
-                if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
-                
-                if(n.type === 'wheel') wGen += 3; 
+        const islandGeo = new THREE.CylinderGeometry(40, 45, 2, 32);
+        const islandMat = new THREE.MeshPhongMaterial({ color: 0x2E8B57 });
+        const island = new THREE.Mesh(islandGeo, islandMat);
+        island.position.y = -0.5;
+        island.receiveShadow = true;
+        this.scene.add(island);
+    }
 
-                if(n.type === 'light') { eCon += 4; lCount++; }
-                if(n.type === 'garden') { wCon += 2; gCount++; }
-            });
+    createPlayerMesh() {
+        const geo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+        const mat = new THREE.MeshPhongMaterial({ color: 0xD2691E }); 
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.y = 1;
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+        return mesh;
+    }
+
+    createCampfireMesh(x, z) {
+        const geo = new THREE.ConeGeometry(1, 2, 8);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, 1, z);
+        this.scene.add(mesh);
+        return mesh;
+    }
+
+    createCropMesh() {
+        const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x32CD32 });
+        const mesh = new THREE.Mesh(geo, mat);
+        return mesh;
+    }
+
+    render() {
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+class PlayerManager {
+    constructor() {
+        this.speed = 8;
+        this.keys = { w: false, a: false, s: false, d: false };
+
+        window.addEventListener('keydown', (e) => this.handleKey(e.key.toLowerCase(), true));
+        window.addEventListener('keyup', (e) => this.handleKey(e.key.toLowerCase(), false));
+    }
+
+    init() {
+        this.mesh = engine.rendering.createPlayerMesh();
+    }
+
+    handleKey(key, isDown) {
+        if (this.keys.hasOwnProperty(key)) this.keys[key] = isDown;
+        
+        if (isDown) {
+            if (key === 'e') engine.world.attemptInteraction();
+            if (key === 'c') engine.world.attemptCooking();
+            if (key === 'p') this.attemptPlanting();
+        }
+    }
+
+    attemptPlanting() {
+        if (engine.inventory.has('sp_seed', 1)) {
+            engine.inventory.remove('sp_seed', 1);
+            engine.farming.plant(this.mesh.position.x, this.mesh.position.z, 'sp_plant');
+        } else if (engine.inventory.has('banana_seed', 1)) {
+            engine.inventory.remove('banana_seed', 1);
+            engine.farming.plant(this.mesh.position.x, this.mesh.position.z, 'banana_plant');
+        } else {
+            engine.ui.notify("No seeds in inventory to plant.");
+        }
+    }
+
+    update(dt) {
+        if (!this.mesh) return;
+        const dir = new THREE.Vector3();
+        if (this.keys.w) dir.z -= 1;
+        if (this.keys.s) dir.z += 1;
+        if (this.keys.a) dir.x -= 1;
+        if (this.keys.d) dir.x += 1;
+
+        if (dir.lengthSq() > 0) {
+            dir.normalize();
+            this.mesh.position.addScaledVector(dir, this.speed * dt);
             
-            GAME.capacity = eCap; GAME.waterCapacity = wCap;
-
-            // 2. Resolve Energy
-            let netE = eGen - eCon;
-            GAME.energy = Math.max(0, Math.min(GAME.capacity, GAME.energy + netE * dt));
-            let hasPower = GAME.energy > 0 || eGen >= eCon;
-            if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
-            if(lCount === 0) hasPower = true;
-
-            // 3. Resolve Pumps
-            let pumpExists = false;
-            GAME.nodes.forEach(n => {
-                if(n.type === 'pump') {
-                    pumpExists = true;
-                    eCon += 5;
-                    if (hasPower || eGen >= eCon) wGen += 10; 
-                }
-                if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
-            });
-
-            // 4. Resolve Water
-            let netW = wGen - wCon;
-            GAME.water = Math.max(0, Math.min(GAME.waterCapacity, GAME.water + netW * dt));
-            let hasWater = GAME.water > 0 || wGen >= wCon;
-            if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
-            if(gCount === 0) hasWater = true;
-
-            // -- PROGRESSION CHECKS (FIXED LOGIC TRAPS) --
-            
-            // 1. Storage: Observe no power at night
-            if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
-                GAME.timers.blackout += dt;
-                if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
+            const distFromCenter = Math.sqrt(this.mesh.position.x**2 + this.mesh.position.z**2);
+            if (distFromCenter > 38) {
+                this.mesh.position.subScaledVector(dir, this.speed * dt); 
             }
-            
-            // 2. Wind: Observe cloudy weather (solar drop)
-            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.4) {
-                GAME.timers.wind += dt;
-                if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
-            }
-            
-            // 3. Rain: Observe rain
-            if (!KNOWLEDGE.understands_rain && isRaining) {
-                GAME.timers.rain += dt;
-                if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
-            }
-            
-            // 4. Agriculture: Collector gathers water
-            if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
-                KNOWLEDGE.understands_agriculture = true; updateUI();
-            }
-            
-            // 5. Pumping: Have a garden, realize river is nearby (Removed drought punishment)
-            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0) {
-                GAME.timers.drought += dt;
-                if (GAME.timers.drought > 5) { KNOWLEDGE.understands_pumping = true; updateUI(); }
-            }
-            
-            // 6. Kinetic: Have a pump, realize river has constant flow (Removed blackout punishment)
-            if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists) {
-                GAME.timers.river += dt;
-                if (GAME.timers.river > 5) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
-            }
-
-            // Visual Updates
-            GAME.nodes.forEach(n => {
-                if(n.type === 'battery') {
-                    let fill = eCap > 0 ? GAME.energy / eCap : 0;
-                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
-                    n.fillMesh.position.y = 0.2 + (1.2 * n.fillMesh.scale.y) / 2;
-                }
-                if(n.type === 'collector') {
-                    let fill = wCap > 0 ? GAME.water / wCap : 0;
-                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
-                    n.fillMesh.position.y = 0.1 + (0.9 * n.fillMesh.scale.y) / 2;
-                }
-                if(n.type === 'light') {
-                    if(hasPower !== n.isOn) {
-                        n.isOn = hasPower;
-                        n.bulb.material = hasPower ? mats.lightOn : mats.lightOff;
-                        n.pLight.intensity = hasPower ? 1.5 : 0;
-                    }
-                }
-                if(n.type === 'wind') n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
-                if(n.type === 'wheel') n.rotor.rotation.x -= dt * 2;
-                if(n.type === 'garden') {
-                    n.plants.forEach(p => {
-                        let targetScale = hasWater ? 1.0 : 0.1;
-                        p.scale.x += (targetScale - p.scale.x) * (dt * 2);
-                        p.scale.y = p.scale.z = p.scale.x;
-                        p.position.y = 0.2 + (p.scale.y * 0.2); 
-                    });
-                }
-            });
-
-            uiStats.e.innerText = Math.floor(GAME.energy); uiStats.c.innerText = Math.floor(GAME.capacity);
-            uiStats.w.innerText = Math.floor(GAME.water); uiStats.wc.innerText = Math.floor(GAME.waterCapacity);
-
-            if(lCount > 0 && gCount > 0 && hasPower && hasWater) {
-                GAME.stableTime += dt;
-                if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) {
-                    GAME.harmonyReached = true; uiBanner.style.opacity = 1;
-                }
-            } else { GAME.stableTime = 0; }
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const dt = Math.min(clock.getDelta(), 0.1); 
-            controls.update(); 
+        engine.rendering.camera.position.x = this.mesh.position.x;
+        engine.rendering.camera.position.z = this.mesh.position.z + 15;
+        engine.rendering.camera.lookAt(this.mesh.position);
+    }
+}
 
-            GAME.time += dt;
-            GAME.weather.cloudCover = (Math.sin(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 22) + 1) / 2; 
-            GAME.weather.windSpeed = ((Math.cos(GAME.time / 8) + 1) / 2 * (Math.sin(GAME.time / 15) + 1) / 2) * 0.9 + 0.1;
-            GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
+class WorldManager {
+    constructor() {
+        this.interactables = [];
+    }
 
-            GAME.nodes.forEach(n => {
-                if(n.group.scale.x < 1) {
-                    let s = n.group.scale.x + dt * 4;
-                    if(s > 1) s = 1;
-                    n.group.scale.set(s,s,s);
+    init() {
+        engine.rendering.createIsland();
+        this.generateWilderness();
+        
+        const fireMesh = engine.rendering.createCampfireMesh(0, -5);
+        this.spawnInteractable(0, -5, 'campfire', {
+            label: "Campfire (Press C to Cook Fruit Salad. Needs 2 Bananas)",
+            mesh: fireMesh,
+            onInteract: () => {} 
+        }, true);
+    }
+
+    generateWilderness() {
+        for(let i=0; i<10; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = Math.random() * 30;
+            const x = Math.cos(angle) * r;
+            const z = Math.sin(angle) * r;
+            
+            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.5, 3);
+            const trunkMat = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            const tree = new THREE.Mesh(trunkGeo, trunkMat);
+            tree.position.set(x, 1.5, z);
+            
+            const leavesGeo = new THREE.SphereGeometry(2);
+            const leavesMat = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+            const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+            leaves.position.y = 2;
+            tree.add(leaves);
+            
+            engine.rendering.scene.add(tree);
+
+            this.spawnInteractable(x, z, 'wild_banana', {
+                label: "Harvest Wild Bananas [E]",
+                mesh: tree,
+                onInteract: (obj) => {
+                    engine.inventory.add('banana', 2);
+                    engine.inventory.add('banana_seed', 1);
+                    engine.ui.notify("Harvested Bananas and found a seed!");
+                    this.removeInteractable(obj);
                 }
-            });
-
-            let cycle = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
-            let angle = cycle * Math.PI * 2 - (Math.PI / 2); 
-            sun.position.set(Math.cos(angle)*50, Math.sin(angle)*50, Math.sin(angle)*15); 
-            moon.position.set(-sun.position.x, -sun.position.y, -sun.position.z);
-
-            let sHeight = Math.max(0, Math.sin(angle));
-            let isDay = sun.position.y > 0;
-            
-            let dayCol = colDayClear.clone().lerp(colDayCloud, GAME.weather.cloudCover);
-            let targetBg = isDay ? dayCol : colNight;
-            scene.background.lerp(targetBg, 0.05); scene.fog.color.lerp(targetBg, 0.05);
-            
-            sun.intensity = sHeight * 1.5 * (1.0 - (GAME.weather.cloudCover * 0.6));
-            ambientLight.intensity = isDay ? 0.4 + (sHeight * 0.2) * (1.0 - GAME.weather.cloudCover * 0.3) : 0.2;
-
-            GAME.nodes.forEach(n => { if(n.type === 'solar' && isDay) n.panel.lookAt(sun.position); });
-
-            updateSystems(dt, sHeight, isDay);
-
-            const sPos = particlesSpore.geometry.attributes.position.array;
-            const rPos = particlesRain.geometry.attributes.position.array;
-            
-            for(let i=0; i<pCount; i++) {
-                let sy = sPos[i*3+1] + dt * 0.5;
-                let sx = sPos[i*3] + dt * GAME.weather.windSpeed * 15; 
-                if(sy > 20 || sx > (ISLAND_SIZE * 0.8)) {
-                    sy = -5; sx = -(ISLAND_SIZE * 0.8);
-                    sPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
-                }
-                sPos[i*3] = sx; sPos[i*3+1] = sy;
-
-                let ry = rPos[i*3+1] - dt * 30; 
-                if(ry < -2) {
-                    ry = 20 + Math.random() * 10;
-                    rPos[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
-                    rPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
-                }
-                rPos[i*3+1] = ry;
-            }
-            particlesSpore.geometry.attributes.position.needsUpdate = true;
-            particlesRain.geometry.attributes.position.needsUpdate = true;
-            
-            matRain.opacity = GAME.weather.rainIntensity * 0.6; 
-
-            renderer.render(scene, camera);
+            }, true);
         }
+    }
 
-        animate();
-    </script>
+    spawnInteractable(x, z, type, data, useExistingMesh = false) {
+        let mesh = data.mesh;
+        if (!useExistingMesh) {
+            const geo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const mat = new THREE.MeshPhongMaterial({ color: type === 'shipwreck' ? 0xA0522D : 0xffffff });
+            mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 0.75, z);
+            engine.rendering.scene.add(mesh);
+        }
+        this.interactables.push({ x, z, type, data, mesh });
+    }
+
+    removeInteractable(obj) {
+        if (obj.mesh) engine.rendering.scene.remove(obj.mesh);
+        this.interactables = this.interactables.filter(i => i !== obj);
+        engine.ui.hidePrompt();
+    }
+
+    getClosestInteractable() {
+        if (!engine.player.mesh) return null;
+        const px = engine.player.mesh.position.x;
+        const pz = engine.player.mesh.position.z;
+        let closest = null;
+        let minD = 3.0; 
+
+        for (let obj of this.interactables) {
+            const d = Math.hypot(px - obj.x, pz - obj.z);
+            if (d < minD) {
+                minD = d;
+                closest = obj;
+            }
+        }
+        return closest;
+    }
+
+    update(dt) {
+        const closest = this.getClosestInteractable();
+        if (closest) {
+            engine.ui.showPrompt(closest.data.label);
+        } else {
+            engine.ui.hidePrompt();
+        }
+    }
+
+    attemptInteraction() {
+        const closest = this.getClosestInteractable();
+        if (closest && closest.data.onInteract) {
+            closest.data.onInteract(closest);
+        }
+    }
+
+    attemptCooking() {
+        if (!engine.player.mesh) return;
+        const px = engine.player.mesh.position.x;
+        const pz = engine.player.mesh.position.z;
+        if (Math.hypot(px - 0, pz - (-5)) < 4.0) {
+            engine.cooking.cook('fruit_salad');
+        } else {
+            engine.ui.notify("You must be near a campfire to cook.");
+        }
+    }
+}
+
+class GameEngine {
+    constructor() {
+        // Instantiate without calling each other yet
+        this.ui = new UIManager();
+        this.rendering = new RenderingManager();
+        this.inventory = new InventoryManager();
+        this.villagers = new VillagerManager();
+        this.weather = new WeatherManager();
+        this.shipwreck = new ShipwreckManager();
+        this.farming = new FarmingManager();
+        this.cooking = new CookingManager();
+        this.world = new WorldManager();
+        this.player = new PlayerManager();
+
+        this.time = { day: 1, hour: 8, minute: 0, accumulator: 0 };
+        this.lastFrame = performance.now();
+        this.loop = this.loop.bind(this);
+    }
+
+    init() {
+        // Now that the 'engine' variable exists globally, we can safely cross-reference!
+        this.villagers.init();
+        this.world.init();
+        this.player.init();
+        
+        this.ui.updateStats(1, this.weather.current);
+        this.ui.notify("Shipwrecked. Find food to survive.");
+        
+        requestAnimationFrame(this.loop);
+    }
+
+    updateTime(dt) {
+        this.time.accumulator += dt;
+        if (this.time.accumulator >= 1.0) {
+            this.time.minute += 10;
+            this.time.accumulator = 0;
+            
+            if (this.time.minute >= 60) {
+                this.time.minute = 0;
+                this.time.hour++;
+                
+                if (this.time.hour >= 24) {
+                    this.time.hour = 0;
+                    this.time.day++;
+                    this.villagers.tickDailyFood();
+                }
+            }
+            this.ui.updateTime(this.time.day, this.time.hour, this.time.minute);
+            
+            const angle = ((this.time.hour + this.time.minute/60) / 24) * Math.PI * 2 - Math.PI/2;
+            this.rendering.sunLight.position.set(Math.cos(angle)*100, Math.sin(angle)*100, 50);
+            this.rendering.scene.background = (this.time.hour > 18 || this.time.hour < 6) ? new THREE.Color(0x0a0a2a) : new THREE.Color(0x87CEEB);
+            this.rendering.scene.fog.color = this.rendering.scene.background;
+        }
+    }
+
+    loop(now) {
+        const dt = (now - this.lastFrame) / 1000;
+        this.lastFrame = now;
+
+        this.updateTime(dt);
+        this.player.update(dt);
+        this.weather.update(dt);
+        this.world.update(dt);
+        this.farming.update(dt);
+        
+        this.rendering.render();
+        requestAnimationFrame(this.loop);
+    }
+}
+
+// Start Game Safely
+const engine = new GameEngine();
+engine.init(); // <--- This safely boots the cross-manager logic!
+
+</script>
 </body>
 </html>
