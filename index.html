@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - Progression Architecture</title>
+    <title>Solarpunk Sandbox - Weather & Wind</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -125,14 +125,14 @@
     <div id="canvas-container"></div>
     
     <div id="status-bar">
-        Energy: <span id="val-energy">0</span> / <span id="val-cap">0</span>
+        Grid: <span id="val-energy">0</span> / <span id="val-cap">0</span> kWh
     </div>
 
     <div id="controls-hint">
         Drag to Rotate &bull; Pinch to Zoom
     </div>
 
-    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The grid is self-sustaining.</span></div>
+    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The ecosystem is stabilizing.</span></div>
 
     <div id="ui-container"></div>
 
@@ -141,45 +141,34 @@
         // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
         // ==========================================
         
-        // --- ENGINEERING DISCIPLINES ---
-        // Internally organizes every craftable object.
-        // Used for future expansion, tech categorizations, and systemic routing.
         const DISCIPLINES = {
-            MECHANICAL: 'mechanical',       // Convert, transmit, or store physical motion.
-            ELECTRICAL: 'electrical',       // Generate, store, distribute, and consume electrical energy.
-            CIVIL: 'civil',                 // Shape terrain and improve transportation.
-            ENVIRONMENTAL: 'environmental', // Improve environmental quality and sustainability.
-            AGRICULTURAL: 'agricultural',   // Create sustainable food systems.
-            MATERIALS: 'materials',         // Unlock improved building materials.
-            CHEMISTRY: 'chemistry',         // Transform raw resources into advanced materials.
-            ECOLOGY: 'ecology'              // Increase long-term ecosystem health.
+            MECHANICAL: 'mechanical',       
+            ELECTRICAL: 'electrical',       
+            CIVIL: 'civil',                 
+            ENVIRONMENTAL: 'environmental', 
+            AGRICULTURAL: 'agricultural',   
+            MATERIALS: 'materials',         
+            CHEMISTRY: 'chemistry',         
+            ECOLOGY: 'ecology'              
         };
 
-        // --- KNOWLEDGE FLAGS ---
-        // Internal tracking of player understanding instead of XP.
-        // Curiosity and observation flip these flags naturally.
         const KNOWLEDGE = {
-            understands_daylight: true,       // Default true: Players understand sun = energy.
-            understands_power_flow: true,     // Default true: Players understand things need power.
+            understands_daylight: true,       
+            understands_power_flow: true,     
             understands_storage: false,       // Discovered when lights blackout at night.
-            understands_wind: false,          // Future: Discovered by observing ambient particles.
+            understands_wind: false,          // Discovered when solar underperforms on windy/cloudy days.
             understands_water_flow: false,    // Future
-            // ... scalable for future systems
         };
 
-        // --- NODE REGISTRY ---
-        // Object structure that future systems can easily plug into.
-        // Disciplines -> Machines -> Recipes -> Resources -> Knowledge -> Logic
         const NODE_REGISTRY = {
             'solar': {
                 id: 'solar',
                 icon: '☀️',
                 discipline: DISCIPLINES.ELECTRICAL,
                 knowledgeRequired: ['understands_daylight'],
-                recipe: { 'scrap': 0 }, // Future material cost compatibility
                 /* --- DESIGN RULE ---
-                   Solves: Electricity generation
-                   Introduces: No nighttime power
+                   Solves: Base electricity generation
+                   Introduces: Vulnerable to night and clouds
                 ---------------------- */
             },
             'light': {
@@ -187,10 +176,9 @@
                 icon: '💡',
                 discipline: DISCIPLINES.ELECTRICAL,
                 knowledgeRequired: ['understands_power_flow'],
-                recipe: { 'scrap': 0 }, 
                 /* --- DESIGN RULE ---
-                   Solves: Illuminates base at night
-                   Introduces: Requires constant energy flow, drains grid
+                   Solves: Illuminates base
+                   Introduces: Continuous grid drain
                 ---------------------- */
             },
             'battery': {
@@ -198,17 +186,26 @@
                 icon: '🔋',
                 discipline: DISCIPLINES.ELECTRICAL,
                 knowledgeRequired: ['understands_storage'],
-                recipe: { 'scrap': 0 },
                 /* --- DESIGN RULE ---
-                   Solves: Night energy storage
-                   Introduces: Limited capacity buffer management
+                   Solves: Stores excess generation for night
+                   Introduces: Limited capacity bottleneck
+                ---------------------- */
+            },
+            'wind': {
+                id: 'wind',
+                icon: '🌀',
+                discipline: DISCIPLINES.MECHANICAL,
+                knowledgeRequired: ['understands_wind'],
+                /* --- DESIGN RULE ---
+                   Solves: Power generation during night/cloudy days
+                   Introduces: Variable, unpredictable output based on weather
                 ---------------------- */
             }
         };
 
 
         // ==========================================
-        // 🎮 GAME STATE & CONFIGURATION
+        // 🎮 GAME STATE & WEATHER SIMULATION
         // ==========================================
         const CYCLE_DURATION = 60; 
         const GRID_SIZE = 2;
@@ -227,7 +224,14 @@
             
             // Progression Trackers
             blackoutObservationTime: 0, 
-            uiRenderedNodes: new Set()
+            windObservationTime: 0,
+            uiRenderedNodes: new Set(),
+
+            // Environmental Systems
+            weather: {
+                cloudCover: 0, // 0 = clear, 1 = fully overcast
+                windSpeed: 0.2 // 0 = calm, 1 = gale
+            }
         };
 
 
@@ -236,16 +240,13 @@
         // ==========================================
         const uiContainer = document.getElementById('ui-container');
 
-        // Evaluates which tools the player currently understands
         function updateUI() {
             let selectedTypeExists = false;
 
             for (const [key, node] of Object.entries(NODE_REGISTRY)) {
-                // Check if player has all required knowledge
                 const hasKnowledge = node.knowledgeRequired.every(req => KNOWLEDGE[req]);
                 
                 if (hasKnowledge && !GAME.uiRenderedNodes.has(key)) {
-                    // Inject newly discovered tech subtly. No popup. No fanfare.
                     const btn = document.createElement('button');
                     btn.className = 'tool-btn';
                     btn.dataset.type = key;
@@ -267,11 +268,9 @@
                     GAME.uiRenderedNodes.add(key);
                 }
 
-                // Ensure the currently selected tool is still valid
                 if (key === GAME.selectedType && hasKnowledge) selectedTypeExists = true;
             }
 
-            // Fallback selection if necessary
             if (!selectedTypeExists && GAME.uiRenderedNodes.size > 0) {
                 const firstBtn = uiContainer.querySelector('.tool-btn');
                 if(firstBtn) {
@@ -281,7 +280,6 @@
             }
         }
 
-        // Initialize UI
         updateUI();
 
 
@@ -291,10 +289,12 @@
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        const colDay = new THREE.Color(0x8bd4e8);
+        const colDayClear = new THREE.Color(0x8bd4e8);
+        const colDayCloud = new THREE.Color(0x8f9ba6);
         const colNight = new THREE.Color(0x0a1128);
-        scene.background = colDay;
-        scene.fog = new THREE.Fog(colDay, 30, 100);
+        
+        scene.background = colDayClear.clone();
+        scene.fog = new THREE.Fog(colDayClear.clone(), 30, 100);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 150);
         camera.position.set(30, 35, 30);
@@ -334,12 +334,11 @@
         const moon = new THREE.DirectionalLight(0x7c9bc2, 0.2);
         scene.add(moon);
 
-        // Environment Generation
+        // Island Mesh
         const matGrass = new THREE.MeshStandardMaterial({ color: 0x7cb06d, roughness: 0.9 });
         const matDirt = new THREE.MeshStandardMaterial({ color: 0x8c7356, roughness: 1.0 });
         
         const islandGroup = new THREE.Group();
-        
         const topGeo = new THREE.BoxGeometry(ISLAND_SIZE, 1, ISLAND_SIZE);
         const islandTop = new THREE.Mesh(topGeo, matGrass);
         islandTop.position.y = -0.5;
@@ -356,15 +355,15 @@
 
         scene.add(islandGroup);
 
-        // Ambient Spores
+        // Wind/Spore Particles
         const particleGeo = new THREE.BufferGeometry();
         const particleCount = 200;
         const posArray = new Float32Array(particleCount * 3);
         for(let i=0; i<particleCount*3; i++) {
-            posArray[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
+            posArray[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
         }
         particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.5 });
+        const particleMat = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
         const particles = new THREE.Points(particleGeo, particleMat);
         scene.add(particles);
 
@@ -376,6 +375,8 @@
         const matBattFill = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.3, emissive: 0x4caf50, emissiveIntensity: 0.2 });
         const matLightOff = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 });
         const matLightOn = new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 });
+        const matTurbine = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 });
+
 
         // ==========================================
         // 🏗️ BUILDING & INTERACTION
@@ -394,7 +395,6 @@
                 const base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), matWhite);
                 base.position.y = 0.1;
                 base.castShadow = true;
-                base.receiveShadow = true;
                 
                 const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), matWhite);
                 pole.position.y = 0.5;
@@ -412,7 +412,6 @@
                 const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.4), matWhite);
                 base.position.y = 0.1;
                 base.castShadow = true;
-                base.receiveShadow = true;
 
                 const coreShell = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16), matBattEmpty);
                 coreShell.position.y = 0.8;
@@ -429,7 +428,6 @@
                 const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), matWood);
                 base.position.y = 0.1;
                 base.castShadow = true;
-                base.receiveShadow = true;
 
                 const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), matWood);
                 pole.position.y = 1.1;
@@ -446,6 +444,44 @@
                 nodeData.pLight = pLight;
                 nodeData.isOn = false;
             }
+            else if(type === 'wind') {
+                const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), matTurbine);
+                base.position.y = 0.15;
+                base.castShadow = true;
+
+                const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4, 8), matTurbine);
+                tower.position.y = 2.3;
+                tower.castShadow = true;
+
+                const nacelle = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.8), matTurbine);
+                nacelle.position.y = 4.3;
+                nacelle.position.z = -0.2;
+                nacelle.castShadow = true;
+
+                // Rotor Group (to rotate)
+                const rotorGroup = new THREE.Group();
+                rotorGroup.position.set(0, 4.3, 0.2);
+
+                const hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), matTurbine);
+                rotorGroup.add(hub);
+
+                // 3 Blades
+                for(let i=0; i<3; i++) {
+                    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), matTurbine);
+                    blade.position.y = 0.9; 
+                    const pivot = new THREE.Group();
+                    pivot.rotation.z = (i * Math.PI * 2) / 3;
+                    pivot.add(blade);
+                    rotorGroup.add(pivot);
+                    blade.castShadow = true;
+                }
+
+                group.add(base, tower, nacelle, rotorGroup);
+                nodeData.rotor = rotorGroup;
+                
+                // Slightly randomize start rotation so they don't sync perfectly
+                rotorGroup.rotation.z = Math.random() * Math.PI; 
+            }
 
             group.scale.set(0, 0, 0);
             scene.add(group);
@@ -454,7 +490,6 @@
 
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        
         let pointerDownPos = new THREE.Vector2();
         let pointerDownTime = 0;
 
@@ -470,7 +505,7 @@
             const dist = pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
             const timeDiff = performance.now() - pointerDownTime;
 
-            if (dist > 10 || timeDiff > 300) return; // Ignore drag actions
+            if (dist > 10 || timeDiff > 300) return;
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -509,9 +544,13 @@
             let capacity = 0;
             let lightCount = 0;
 
-            // Future expansion: These will iterate through dynamic recipes/logic
+            // Weather impacts
+            // Clouds reduce sun intensity by up to 60%
+            let effectiveSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
+
             GAME.nodes.forEach(n => {
-                if(n.type === 'solar') generation += 10 * sunIntensity;
+                if(n.type === 'solar') generation += 10 * effectiveSun;
+                if(n.type === 'wind')  generation += 8 * GAME.weather.windSpeed;
                 if(n.type === 'battery') capacity += 100;
                 if(n.type === 'light') {
                     consumption += 4;
@@ -520,7 +559,6 @@
             });
 
             GAME.capacity = capacity;
-            
             let net = generation - consumption;
             GAME.energy += net * dt;
 
@@ -532,16 +570,29 @@
             if(lightCount === 0) hasPower = true; 
 
             // -- PROGRESSION: DISCOVERY CHECKS --
-            // If the player built lights, but the sun is down and there's no power...
+            
+            // 1. Discover Storage: Lights out at night without power
             if (lightCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
                 GAME.blackoutObservationTime += dt;
-                // Player observes the problem for 3 seconds -> Unlocks solution organically
                 if (GAME.blackoutObservationTime > 3) {
                     KNOWLEDGE.understands_storage = true;
-                    updateUI(); // Naturally appends battery tool
+                    updateUI(); 
                 }
             } else if (hasPower) {
                 GAME.blackoutObservationTime = 0;
+            }
+
+            // 2. Discover Wind: Unlocked storage, but clouds/wind present
+            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind) {
+                if (GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
+                    GAME.windObservationTime += dt;
+                    if (GAME.windObservationTime > 4) { // Observe the windy/cloudy conditions
+                        KNOWLEDGE.understands_wind = true;
+                        updateUI();
+                    }
+                } else {
+                    GAME.windObservationTime = 0;
+                }
             }
 
             // Apply state to visuals
@@ -558,6 +609,10 @@
                         n.bulb.material = shouldBeOn ? matLightOn : matLightOff;
                         n.pLight.intensity = shouldBeOn ? 1.5 : 0;
                     }
+                }
+                if(n.type === 'wind') {
+                    // Rotate based on wind speed
+                    n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
                 }
             });
 
@@ -582,6 +637,13 @@
 
             controls.update(); 
 
+            // Weather System Evolution (Using intersecting sine waves for natural variance)
+            GAME.time += dt;
+            GAME.weather.cloudCover = (Math.sin(GAME.time / 15) + 1) / 2 * (Math.sin(GAME.time / 25) + 1) / 2; 
+            // Wind speed varies between 0.1 and ~1.0
+            GAME.weather.windSpeed = ((Math.cos(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 18) + 1) / 2) * 0.9 + 0.1;
+
+            // Spawn Animations
             GAME.nodes.forEach(n => {
                 if(n.group.scale.x < 1) {
                     n.group.scale.x += dt * 4;
@@ -591,7 +653,7 @@
                 }
             });
 
-            GAME.time += dt;
+            // Day/Night Cycle
             let cycleProgress = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
             let angle = cycleProgress * Math.PI * 2 - (Math.PI / 2); 
 
@@ -604,33 +666,50 @@
             moon.position.z = -sun.position.z;
 
             let sunHeight = Math.max(0, Math.sin(angle));
-            sun.intensity = sunHeight * 1.5;
             
+            // Sky colors mixed with weather
             let isDay = sun.position.y > 0;
-            let targetBg = isDay ? colDay : colNight;
-            scene.background.lerp(targetBg, 0.02);
-            scene.fog.color.lerp(targetBg, 0.02);
-            ambientLight.intensity = isDay ? 0.4 + (sunHeight * 0.2) : 0.2;
+            
+            // 1. Blend clear day with clouds
+            let currentDayCol = colDayClear.clone().lerp(colDayCloud, GAME.weather.cloudCover);
+            // 2. Blend resulting day color with night
+            let targetBg = isDay ? currentDayCol : colNight;
+            
+            scene.background.lerp(targetBg, 0.05);
+            scene.fog.color.lerp(targetBg, 0.05);
+            
+            // Lighting adjustments based on sun height AND clouds
+            sun.intensity = sunHeight * 1.5 * (1.0 - (GAME.weather.cloudCover * 0.6));
+            ambientLight.intensity = isDay ? 0.4 + (sunHeight * 0.2) * (1.0 - GAME.weather.cloudCover * 0.3) : 0.2;
 
+            // Solar panels track sun
             GAME.nodes.forEach(n => {
-                if(n.type === 'solar' && isDay) {
-                    n.panel.lookAt(sun.position);
-                }
+                if(n.type === 'solar' && isDay) n.panel.lookAt(sun.position);
             });
 
+            // Energy & Logic
             updateEnergySystem(dt, sunHeight, isDay);
 
-            // Ambient Animation Loop (Wind/Spores)
+            // Wind Particles Animation
             const positions = particles.geometry.attributes.position.array;
             for(let i=0; i<particleCount; i++) {
+                let x = positions[i*3];
                 let y = positions[i*3+1];
+                let z = positions[i*3+2];
+                
+                // Drift up slowly, blow across horizontally based on wind
                 y += dt * 0.5;
-                if(y > 20) {
+                x += dt * GAME.weather.windSpeed * 15; // Wind pushes particles heavily
+                
+                if(y > 20 || x > (ISLAND_SIZE * 0.8)) {
                     y = -5;
-                    positions[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
-                    positions[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
+                    x = -(ISLAND_SIZE * 0.8);
+                    z = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
                 }
+                
+                positions[i*3] = x;
                 positions[i*3+1] = y;
+                positions[i*3+2] = z;
             }
             particles.geometry.attributes.position.needsUpdate = true;
 
