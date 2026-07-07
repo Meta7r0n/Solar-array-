@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - Ecosystem Update</title>
+    <title>Solarpunk Sandbox - Ecosystem Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -164,9 +164,9 @@
             understands_power_flow: true,     
             understands_storage: false,       
             understands_wind: false,          
-            understands_rain: false,          // Discovered by observing heavy cloud cover
-            understands_agriculture: false,   // Discovered by building a rain collector
-            understands_pumping: false        // Discovered when rain stops and garden dries out
+            understands_rain: false,          
+            understands_agriculture: false,   
+            understands_pumping: false        
         };
 
         const NODE_REGISTRY = {
@@ -346,7 +346,7 @@
         rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 
         const matSpore = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
-        const matRain = new THREE.PointsMaterial({ size: 0.15, color: 0x8bd4e8, transparent: true, opacity: 0 }); // Rain hidden by default
+        const matRain = new THREE.PointsMaterial({ size: 0.15, color: 0x8bd4e8, transparent: true, opacity: 0 }); 
         
         const particlesSpore = new THREE.Points(sporeGeo, matSpore);
         const particlesRain = new THREE.Points(rainGeo, matRain);
@@ -553,25 +553,32 @@
             if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
             if(gCount === 0) hasWater = true;
 
-            // -- PROGRESSION CHECKS --
-            if (lightCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
+            // -- PROGRESSION CHECKS (HOTFIXED SCOPING) --
+            
+            // 1. Storage Discovery (Lights lose power at night)
+            if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
                 GAME.timers.blackout += dt;
                 if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
             }
+            
+            // 2. Wind Discovery (Bad weather observation after storage unlocked)
             if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
                 GAME.timers.wind += dt;
                 if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
             }
-            // Rain Discovery
+            
+            // 3. Rain Discovery (Observe rain)
             if (!KNOWLEDGE.understands_rain && isRaining) {
                 GAME.timers.rain += dt;
                 if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
             }
-            // Ag Discovery (Build collector)
+            
+            // 4. Agriculture Discovery (Build collector and gather water)
             if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
                 KNOWLEDGE.understands_agriculture = true; updateUI();
             }
-            // Pump Discovery (Garden runs out of water)
+            
+            // 5. Pump Discovery (Garden runs out of water when rain stops)
             if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0 && !hasWater && !isRaining) {
                 GAME.timers.drought += dt;
                 if (GAME.timers.drought > 4) { KNOWLEDGE.understands_pumping = true; updateUI(); }
@@ -600,9 +607,9 @@
                 if(n.type === 'garden') {
                     n.plants.forEach(p => {
                         let targetScale = hasWater ? 1.0 : 0.1;
-                        p.scale.x += (targetScale - p.scale.x) * dt;
+                        p.scale.x += (targetScale - p.scale.x) * (dt * 2);
                         p.scale.y = p.scale.z = p.scale.x;
-                        p.position.y = 0.2 + (p.scale.y * 0.2); // grow up slightly
+                        p.position.y = 0.2 + (p.scale.y * 0.2); 
                     });
                 }
             });
@@ -617,9 +624,6 @@
                     GAME.harmonyReached = true; uiBanner.style.opacity = 1;
                 }
             } else { GAME.stableTime = 0; }
-            
-            // Reference needed for discovery logic
-            var lightCount = lCount;
         }
 
         function animate() {
@@ -629,8 +633,10 @@
 
             // Weather System
             GAME.time += dt;
-            GAME.weather.cloudCover = (Math.sin(GAME.time / 15) + 1) / 2 * (Math.sin(GAME.time / 25) + 1) / 2; 
-            GAME.weather.windSpeed = ((Math.cos(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 18) + 1) / 2) * 0.9 + 0.1;
+            // Slightly adjusted frequencies to ensure storms trigger properly for playtesting
+            GAME.weather.cloudCover = (Math.sin(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 22) + 1) / 2; 
+            GAME.weather.windSpeed = ((Math.cos(GAME.time / 8) + 1) / 2 * (Math.sin(GAME.time / 15) + 1) / 2) * 0.9 + 0.1;
+            
             // Rain kicks in when clouds > 0.65
             GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
 
@@ -689,7 +695,7 @@
             particlesSpore.geometry.attributes.position.needsUpdate = true;
             particlesRain.geometry.attributes.position.needsUpdate = true;
             
-            matRain.opacity = GAME.weather.rainIntensity * 0.6; // Fade rain in/out
+            matRain.opacity = GAME.weather.rainIntensity * 0.6; 
 
             renderer.render(scene, camera);
         }
