@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - Weather & Wind</title>
+    <title>Solarpunk Sandbox - Ecosystem Update</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -11,6 +11,7 @@
             --bg: #1a2639;
             --ui-bg: rgba(255, 255, 255, 0.85);
             --ui-active: #7cb06d;
+            --ui-water: #4fa4d1;
             --text: #2c3e50;
         }
         body, html {
@@ -41,7 +42,6 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             backdrop-filter: blur(5px);
             z-index: 10;
-            transition: all 0.5s ease;
         }
         .tool-btn {
             background: none;
@@ -52,36 +52,36 @@
             cursor: pointer;
             color: var(--text);
             font-weight: bold;
-            transition: all 0.5s ease;
+            transition: all 0.4s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
             width: 60px;
             height: 60px;
-            opacity: 0;
-            transform: translateY(10px);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
             animation: fadeIn 0.5s forwards ease-out;
         }
         @keyframes fadeIn {
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateY(10px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .tool-btn:active {
-            transform: scale(0.95);
-        }
+        .tool-btn:active { transform: scale(0.95); }
         .tool-btn.active {
             background: var(--ui-active);
             color: white;
             box-shadow: 0 4px 15px rgba(124, 176, 109, 0.4);
+        }
+        .tool-btn.active[data-type="pump"], .tool-btn.active[data-type="collector"] {
+            background: var(--ui-water);
+            box-shadow: 0 4px 15px rgba(79, 164, 209, 0.4);
         }
         #harmony-banner {
             position: absolute;
             top: 15%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             color: #7cb06d;
             padding: 15px 30px;
             border-radius: 30px;
@@ -99,14 +99,20 @@
             top: 20px;
             left: 20px;
             background: var(--ui-bg);
-            padding: 10px 20px;
+            padding: 15px 20px;
             border-radius: 20px;
             color: var(--text);
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             pointer-events: none;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
+        .stat-row { display: flex; align-items: center; gap: 8px; }
+        .icon-energy { color: #f39c12; font-size: 1.1rem; }
+        .icon-water { color: #3498db; font-size: 1.1rem; }
         #controls-hint {
             position: absolute;
             top: 20px;
@@ -125,14 +131,19 @@
     <div id="canvas-container"></div>
     
     <div id="status-bar">
-        Grid: <span id="val-energy">0</span> / <span id="val-cap">0</span> kWh
+        <div class="stat-row">
+            <span class="icon-energy">⚡</span> 
+            <span id="val-energy">0</span> / <span id="val-cap">0</span> kWh
+        </div>
+        <div class="stat-row">
+            <span class="icon-water">💧</span> 
+            <span id="val-water">0</span> / <span id="val-wcap">0</span> L
+        </div>
     </div>
 
-    <div id="controls-hint">
-        Drag to Rotate &bull; Pinch to Zoom
-    </div>
+    <div id="controls-hint">Drag to Rotate &bull; Pinch to Zoom</div>
 
-    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The ecosystem is stabilizing.</span></div>
+    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The biome is self-sustaining.</span></div>
 
     <div id="ui-container"></div>
 
@@ -140,72 +151,36 @@
         // ==========================================
         // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
         // ==========================================
-        
         const DISCIPLINES = {
             MECHANICAL: 'mechanical',       
             ELECTRICAL: 'electrical',       
             CIVIL: 'civil',                 
             ENVIRONMENTAL: 'environmental', 
-            AGRICULTURAL: 'agricultural',   
-            MATERIALS: 'materials',         
-            CHEMISTRY: 'chemistry',         
-            ECOLOGY: 'ecology'              
+            AGRICULTURAL: 'agricultural'
         };
 
         const KNOWLEDGE = {
             understands_daylight: true,       
             understands_power_flow: true,     
-            understands_storage: false,       // Discovered when lights blackout at night.
-            understands_wind: false,          // Discovered when solar underperforms on windy/cloudy days.
-            understands_water_flow: false,    // Future
+            understands_storage: false,       
+            understands_wind: false,          
+            understands_rain: false,          // Discovered by observing heavy cloud cover
+            understands_agriculture: false,   // Discovered by building a rain collector
+            understands_pumping: false        // Discovered when rain stops and garden dries out
         };
 
         const NODE_REGISTRY = {
-            'solar': {
-                id: 'solar',
-                icon: '☀️',
-                discipline: DISCIPLINES.ELECTRICAL,
-                knowledgeRequired: ['understands_daylight'],
-                /* --- DESIGN RULE ---
-                   Solves: Base electricity generation
-                   Introduces: Vulnerable to night and clouds
-                ---------------------- */
-            },
-            'light': {
-                id: 'light',
-                icon: '💡',
-                discipline: DISCIPLINES.ELECTRICAL,
-                knowledgeRequired: ['understands_power_flow'],
-                /* --- DESIGN RULE ---
-                   Solves: Illuminates base
-                   Introduces: Continuous grid drain
-                ---------------------- */
-            },
-            'battery': {
-                id: 'battery',
-                icon: '🔋',
-                discipline: DISCIPLINES.ELECTRICAL,
-                knowledgeRequired: ['understands_storage'],
-                /* --- DESIGN RULE ---
-                   Solves: Stores excess generation for night
-                   Introduces: Limited capacity bottleneck
-                ---------------------- */
-            },
-            'wind': {
-                id: 'wind',
-                icon: '🌀',
-                discipline: DISCIPLINES.MECHANICAL,
-                knowledgeRequired: ['understands_wind'],
-                /* --- DESIGN RULE ---
-                   Solves: Power generation during night/cloudy days
-                   Introduces: Variable, unpredictable output based on weather
-                ---------------------- */
-            }
+            'solar': { id: 'solar', icon: '☀️', req: ['understands_daylight'] },
+            'light': { id: 'light', icon: '💡', req: ['understands_power_flow'] },
+            'battery': { id: 'battery', icon: '🔋', req: ['understands_storage'] },
+            'wind': { id: 'wind', icon: '🌀', req: ['understands_wind'] },
+            'collector': { id: 'collector', icon: '🪣', req: ['understands_rain'] },
+            'garden': { id: 'garden', icon: '🌱', req: ['understands_agriculture'] },
+            'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] }
         };
 
-
         // ==========================================
-        // 🎮 GAME STATE & WEATHER SIMULATION
+        // 🎮 GAME STATE
         // ==========================================
         const CYCLE_DURATION = 60; 
         const GRID_SIZE = 2;
@@ -213,27 +188,18 @@
         const GRID_EXTENT = (ISLAND_SIZE / 2) - 2;
         
         const GAME = {
-            energy: 0,
-            capacity: 0,
-            nodes: [],
-            gridMap: new Set(),
+            energy: 0, capacity: 0,
+            water: 0, waterCapacity: 0,
+            nodes: [], gridMap: new Set(),
             selectedType: 'solar',
-            time: 0,
-            stableTime: 0,
-            harmonyReached: false,
+            time: 0, stableTime: 0, harmonyReached: false,
             
             // Progression Trackers
-            blackoutObservationTime: 0, 
-            windObservationTime: 0,
+            timers: { blackout: 0, wind: 0, rain: 0, drought: 0 },
             uiRenderedNodes: new Set(),
 
-            // Environmental Systems
-            weather: {
-                cloudCover: 0, // 0 = clear, 1 = fully overcast
-                windSpeed: 0.2 // 0 = calm, 1 = gale
-            }
+            weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
         };
-
 
         // ==========================================
         // 🖥️ UI & DISCOVERY SYSTEM
@@ -242,9 +208,8 @@
 
         function updateUI() {
             let selectedTypeExists = false;
-
             for (const [key, node] of Object.entries(NODE_REGISTRY)) {
-                const hasKnowledge = node.knowledgeRequired.every(req => KNOWLEDGE[req]);
+                const hasKnowledge = node.req.every(req => KNOWLEDGE[req]);
                 
                 if (hasKnowledge && !GAME.uiRenderedNodes.has(key)) {
                     const btn = document.createElement('button');
@@ -267,10 +232,8 @@
                     uiContainer.appendChild(btn);
                     GAME.uiRenderedNodes.add(key);
                 }
-
                 if (key === GAME.selectedType && hasKnowledge) selectedTypeExists = true;
             }
-
             if (!selectedTypeExists && GAME.uiRenderedNodes.size > 0) {
                 const firstBtn = uiContainer.querySelector('.tool-btn');
                 if(firstBtn) {
@@ -279,9 +242,7 @@
                 }
             }
         }
-
         updateUI();
-
 
         // ==========================================
         // 🌍 THREE.JS SETUP & ENGINE
@@ -290,14 +251,14 @@
         const scene = new THREE.Scene();
         
         const colDayClear = new THREE.Color(0x8bd4e8);
-        const colDayCloud = new THREE.Color(0x8f9ba6);
+        const colDayCloud = new THREE.Color(0x708090);
         const colNight = new THREE.Color(0x0a1128);
         
         scene.background = colDayClear.clone();
         scene.fog = new THREE.Fog(colDayClear.clone(), 30, 100);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 150);
-        camera.position.set(30, 35, 30);
+        camera.position.set(35, 40, 35);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -317,69 +278,99 @@
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
-
         const sun = new THREE.DirectionalLight(0xfff5b6, 1.5);
         sun.castShadow = true;
         sun.shadow.mapSize.width = 2048; 
         sun.shadow.mapSize.height = 2048;
-        sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 100;
-        sun.shadow.camera.left = -30;
-        sun.shadow.camera.right = 30;
-        sun.shadow.camera.top = 30;
-        sun.shadow.camera.bottom = -30;
+        sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
         sun.shadow.bias = -0.001;
         scene.add(sun);
-
         const moon = new THREE.DirectionalLight(0x7c9bc2, 0.2);
         scene.add(moon);
 
-        // Island Mesh
+        // --- TERRAFORMING (Split Island & River) ---
         const matGrass = new THREE.MeshStandardMaterial({ color: 0x7cb06d, roughness: 0.9 });
         const matDirt = new THREE.MeshStandardMaterial({ color: 0x8c7356, roughness: 1.0 });
+        const matRiver = new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.8, roughness: 0.1 });
         
         const islandGroup = new THREE.Group();
-        const topGeo = new THREE.BoxGeometry(ISLAND_SIZE, 1, ISLAND_SIZE);
-        const islandTop = new THREE.Mesh(topGeo, matGrass);
-        islandTop.position.y = -0.5;
-        islandTop.receiveShadow = true;
-        islandTop.castShadow = true;
-        islandGroup.add(islandTop);
+        const raycastTargets = [];
 
-        const baseGeo = new THREE.BoxGeometry(ISLAND_SIZE - 2, 4, ISLAND_SIZE - 2);
-        const islandBase = new THREE.Mesh(baseGeo, matDirt);
-        islandBase.position.y = -3;
-        islandBase.receiveShadow = true;
-        islandBase.castShadow = true;
-        islandGroup.add(islandBase);
+        // Left Island
+        const widthHalf = (ISLAND_SIZE - 4) / 2;
+        const leftGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
+        const islandLeft = new THREE.Mesh(leftGeo, matGrass);
+        islandLeft.position.set(-widthHalf/2 - 2, -2, 0);
+        islandLeft.receiveShadow = true; islandLeft.castShadow = true;
+        islandGroup.add(islandLeft);
+        raycastTargets.push(islandLeft);
+
+        // Right Island
+        const rightGeo = new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE);
+        const islandRight = new THREE.Mesh(rightGeo, matGrass);
+        islandRight.position.set(widthHalf/2 + 2, -2, 0);
+        islandRight.receiveShadow = true; islandRight.castShadow = true;
+        islandGroup.add(islandRight);
+        raycastTargets.push(islandRight);
+
+        // River Bed (Dirt underneath water)
+        const bedGeo = new THREE.BoxGeometry(4, 3, ISLAND_SIZE);
+        const riverBed = new THREE.Mesh(bedGeo, matDirt);
+        riverBed.position.set(0, -2.5, 0);
+        islandGroup.add(riverBed);
+
+        // River Water Plane
+        const riverGeo = new THREE.BoxGeometry(4, 0.8, ISLAND_SIZE);
+        const riverMesh = new THREE.Mesh(riverGeo, matRiver);
+        riverMesh.position.set(0, -0.6, 0); // Slightly below grass level
+        riverMesh.receiveShadow = true;
+        islandGroup.add(riverMesh);
+        raycastTargets.push(riverMesh); // Allow raycasting onto river for pumps
 
         scene.add(islandGroup);
 
-        // Wind/Spore Particles
-        const particleGeo = new THREE.BufferGeometry();
-        const particleCount = 200;
-        const posArray = new Float32Array(particleCount * 3);
-        for(let i=0; i<particleCount*3; i++) {
-            posArray[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+        // --- PARTICLES (Wind/Spores & Rain) ---
+        const pCount = 200;
+        const sporeGeo = new THREE.BufferGeometry();
+        const sporePos = new Float32Array(pCount * 3);
+        const rainGeo = new THREE.BufferGeometry();
+        const rainPos = new Float32Array(pCount * 3);
+
+        for(let i=0; i<pCount*3; i++) {
+            sporePos[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+            rainPos[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
         }
-        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
-        const particles = new THREE.Points(particleGeo, particleMat);
-        scene.add(particles);
+        sporeGeo.setAttribute('position', new THREE.BufferAttribute(sporePos, 3));
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 
-        // Shared Materials
-        const matWhite = new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 });
-        const matWood = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 });
-        const matPanel = new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 });
-        const matBattEmpty = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
-        const matBattFill = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.3, emissive: 0x4caf50, emissiveIntensity: 0.2 });
-        const matLightOff = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 });
-        const matLightOn = new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 });
-        const matTurbine = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 });
+        const matSpore = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
+        const matRain = new THREE.PointsMaterial({ size: 0.15, color: 0x8bd4e8, transparent: true, opacity: 0 }); // Rain hidden by default
+        
+        const particlesSpore = new THREE.Points(sporeGeo, matSpore);
+        const particlesRain = new THREE.Points(rainGeo, matRain);
+        scene.add(particlesSpore);
+        scene.add(particlesRain);
 
+
+        // --- NODE MATERIALS ---
+        const mats = {
+            white: new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 }),
+            wood: new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 }),
+            panel: new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 }),
+            battEmpty: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }),
+            battFill: new THREE.MeshStandardMaterial({ color: 0x4caf50, emissive: 0x4caf50, emissiveIntensity: 0.2 }),
+            lightOff: new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 }),
+            lightOn: new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 }),
+            turbine: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 }),
+            water: new THREE.MeshStandardMaterial({ color: 0x3498db, emissive: 0x3498db, emissiveIntensity: 0.2 }),
+            dirt: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1.0 }),
+            plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 })
+        };
 
         // ==========================================
-        // 🏗️ BUILDING & INTERACTION
+        // 🏗️ BUILDING FACTORY
         // ==========================================
         function createNode(type, x, z) {
             const key = `${x},${z}`;
@@ -387,138 +378,119 @@
             GAME.gridMap.add(key);
 
             const group = new THREE.Group();
-            group.position.set(x, 0, z);
             
-            let nodeData = { type, group, x, z };
+            // Height adjustment based on placement (river vs land)
+            const yPos = (x === 0) ? -0.2 : 0; 
+            group.position.set(x, yPos, z);
+            
+            let node = { type, group, x, z };
 
             if(type === 'solar') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), matWhite);
-                base.position.y = 0.1;
-                base.castShadow = true;
-                
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), matWhite);
-                pole.position.y = 0.5;
-                pole.castShadow = true;
-
-                const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), matPanel);
-                panel.position.y = 0.9;
-                panel.rotation.x = Math.PI / 6;
-                panel.castShadow = true;
-
-                group.add(base, pole, panel);
-                nodeData.panel = panel;
+                const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), mats.white);
+                const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), mats.white);
+                const pan = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), mats.panel);
+                b.position.y = 0.1; p.position.y = 0.5; pan.position.y = 0.9; pan.rotation.x = Math.PI / 6;
+                b.castShadow = p.castShadow = pan.castShadow = true;
+                group.add(b, p, pan);
+                node.panel = pan;
             } 
             else if(type === 'battery') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.4), matWhite);
-                base.position.y = 0.1;
-                base.castShadow = true;
-
-                const coreShell = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16), matBattEmpty);
-                coreShell.position.y = 0.8;
-                coreShell.castShadow = true;
-                
-                const coreFill = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16), matBattFill);
-                coreFill.position.y = 0.8;
-                coreFill.scale.y = 0.01;
-                
-                group.add(base, coreShell, coreFill);
-                nodeData.fillMesh = coreFill;
+                const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.4), mats.white);
+                const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16), mats.battEmpty);
+                const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16), mats.battFill);
+                b.position.y = 0.1; shell.position.y = 0.8; fill.position.y = 0.8; fill.scale.y = 0.01;
+                b.castShadow = shell.castShadow = true;
+                group.add(b, shell, fill);
+                node.fillMesh = fill;
             }
             else if(type === 'light') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), matWood);
-                base.position.y = 0.1;
-                base.castShadow = true;
-
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), matWood);
-                pole.position.y = 1.1;
-                pole.castShadow = true;
-
-                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), matLightOff);
-                bulb.position.y = 2.2;
-                
+                const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), mats.wood);
+                const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), mats.wood);
+                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), mats.lightOff);
                 const pLight = new THREE.PointLight(0xffea00, 0, 8);
-                pLight.position.y = 2.2;
-
-                group.add(base, pole, bulb, pLight);
-                nodeData.bulb = bulb;
-                nodeData.pLight = pLight;
-                nodeData.isOn = false;
+                b.position.y = 0.1; p.position.y = 1.1; bulb.position.y = pLight.position.y = 2.2;
+                b.castShadow = p.castShadow = true;
+                group.add(b, p, bulb, pLight);
+                node.bulb = bulb; node.pLight = pLight; node.isOn = false;
             }
             else if(type === 'wind') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), matTurbine);
-                base.position.y = 0.15;
-                base.castShadow = true;
-
-                const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4, 8), matTurbine);
-                tower.position.y = 2.3;
-                tower.castShadow = true;
-
-                const nacelle = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.8), matTurbine);
-                nacelle.position.y = 4.3;
-                nacelle.position.z = -0.2;
-                nacelle.castShadow = true;
-
-                // Rotor Group (to rotate)
-                const rotorGroup = new THREE.Group();
-                rotorGroup.position.set(0, 4.3, 0.2);
-
-                const hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), matTurbine);
-                rotorGroup.add(hub);
-
-                // 3 Blades
+                const b = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), mats.turbine);
+                const t = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4, 8), mats.turbine);
+                const nac = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.8), mats.turbine);
+                b.position.y = 0.15; t.position.y = 2.3; nac.position.set(0, 4.3, -0.2);
+                const rGroup = new THREE.Group(); rGroup.position.set(0, 4.3, 0.2);
+                rGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), mats.turbine));
                 for(let i=0; i<3; i++) {
-                    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), matTurbine);
-                    blade.position.y = 0.9; 
-                    const pivot = new THREE.Group();
-                    pivot.rotation.z = (i * Math.PI * 2) / 3;
-                    pivot.add(blade);
-                    rotorGroup.add(pivot);
-                    blade.castShadow = true;
+                    const bl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), mats.turbine);
+                    bl.position.y = 0.9; bl.castShadow = true;
+                    const piv = new THREE.Group(); piv.rotation.z = (i * Math.PI*2)/3;
+                    piv.add(bl); rGroup.add(piv);
                 }
-
-                group.add(base, tower, nacelle, rotorGroup);
-                nodeData.rotor = rotorGroup;
-                
-                // Slightly randomize start rotation so they don't sync perfectly
-                rotorGroup.rotation.z = Math.random() * Math.PI; 
+                b.castShadow = t.castShadow = nac.castShadow = true;
+                group.add(b, t, nac, rGroup);
+                node.rotor = rGroup; rGroup.rotation.z = Math.random() * Math.PI;
+            }
+            else if (type === 'collector') {
+                const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.5, 1.0, 12), mats.wood);
+                const wFill = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.9, 12), mats.water);
+                barrel.position.y = 0.5; wFill.position.y = 0.5; wFill.scale.y = 0.01;
+                barrel.castShadow = true;
+                group.add(barrel, wFill);
+                node.fillMesh = wFill;
+            }
+            else if (type === 'pump') {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), mats.white);
+                const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.5), mats.white);
+                b.position.y = 0.25; pipe.position.y = 1.0; pipe.rotation.x = Math.PI/4;
+                b.castShadow = pipe.castShadow = true;
+                group.add(b, pipe);
+            }
+            else if (type === 'garden') {
+                const dirt = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 1.8), mats.dirt);
+                dirt.position.y = 0.1; dirt.castShadow = dirt.receiveShadow = true;
+                group.add(dirt);
+                node.plants = [];
+                for(let i=0; i<4; i++) {
+                    const p = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), mats.plant);
+                    p.position.set((Math.random()-0.5)*1.2, 0.2, (Math.random()-0.5)*1.2);
+                    p.scale.set(0.1, 0.1, 0.1); p.castShadow = true;
+                    group.add(p); node.plants.push(p);
+                }
             }
 
             group.scale.set(0, 0, 0);
             scene.add(group);
-            GAME.nodes.push(nodeData);
+            GAME.nodes.push(node);
         }
 
+        // --- INTERACTION ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        let pointerDownPos = new THREE.Vector2();
-        let pointerDownTime = 0;
+        let pDown = new THREE.Vector2(), pTime = 0;
 
         window.addEventListener('pointerdown', (e) => {
             if(e.target.closest('#ui-container')) return;
-            pointerDownPos.set(e.clientX, e.clientY);
-            pointerDownTime = performance.now();
+            pDown.set(e.clientX, e.clientY); pTime = performance.now();
         });
 
         window.addEventListener('pointerup', (e) => {
             if(e.target.closest('#ui-container')) return;
-            
-            const dist = pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
-            const timeDiff = performance.now() - pointerDownTime;
-
-            if (dist > 10 || timeDiff > 300) return;
+            if (pDown.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 10 || performance.now() - pTime > 300) return;
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(islandTop);
-
+            
+            const intersects = raycaster.intersectObjects(raycastTargets);
             if (intersects.length > 0) {
-                const pt = intersects[0].point;
+                let pt = intersects[0].point;
                 let nx = Math.round(pt.x / GRID_SIZE) * GRID_SIZE;
                 let nz = Math.round(pt.z / GRID_SIZE) * GRID_SIZE;
 
                 if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
+                    // Placement Constraints
+                    if (GAME.selectedType === 'pump' && nx !== 0) return; // Pumps only in river
+                    if (GAME.selectedType !== 'pump' && nx === 0) return; // Others only on land
                     createNode(GAME.selectedType, nx, nz);
                 }
             }
@@ -526,198 +498,203 @@
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
         // ==========================================
-        // ⚙️ SIMULATION LOGIC & DISCOVERY CHECKER
+        // ⚙️ SIMULATION LOGIC
         // ==========================================
         const clock = new THREE.Clock();
-        const uiEnergy = document.getElementById('val-energy');
-        const uiCap = document.getElementById('val-cap');
+        const uiStats = {
+            e: document.getElementById('val-energy'), c: document.getElementById('val-cap'),
+            w: document.getElementById('val-water'), wc: document.getElementById('val-wcap')
+        };
         const uiBanner = document.getElementById('harmony-banner');
 
-        function updateEnergySystem(dt, sunIntensity, isDay) {
-            let generation = 0;
-            let consumption = 0;
-            let capacity = 0;
-            let lightCount = 0;
+        function updateSystems(dt, sunIntensity, isDay) {
+            let eGen = 0, eCon = 0, eCap = 0, lCount = 0;
+            let wGen = 0, wCon = 0, wCap = 0, gCount = 0;
 
-            // Weather impacts
-            // Clouds reduce sun intensity by up to 60%
-            let effectiveSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
+            let effSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
+            let isRaining = GAME.weather.rainIntensity > 0;
 
+            // 1. Calculate Capacities & Needs
             GAME.nodes.forEach(n => {
-                if(n.type === 'solar') generation += 10 * effectiveSun;
-                if(n.type === 'wind')  generation += 8 * GAME.weather.windSpeed;
-                if(n.type === 'battery') capacity += 100;
-                if(n.type === 'light') {
-                    consumption += 4;
-                    lightCount++;
+                if(n.type === 'battery') eCap += 100;
+                if(n.type === 'collector') wCap += 50;
+                if(n.type === 'solar') eGen += 10 * effSun;
+                if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
+                if(n.type === 'light') { eCon += 4; lCount++; }
+                if(n.type === 'garden') { wCon += 2; gCount++; }
+            });
+            
+            GAME.capacity = eCap; GAME.waterCapacity = wCap;
+
+            // 2. Resolve Energy
+            let netE = eGen - eCon;
+            GAME.energy = Math.max(0, Math.min(GAME.capacity, GAME.energy + netE * dt));
+            let hasPower = GAME.energy > 0 || eGen >= eCon;
+            if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
+            if(lCount === 0) hasPower = true;
+
+            // 3. Resolve Pumps (Only work if grid has power)
+            GAME.nodes.forEach(n => {
+                if(n.type === 'pump') {
+                    eCon += 5; // Heavy draw
+                    if (hasPower || eGen >= eCon) wGen += 10; // Pumps generate massive water
                 }
+                if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
             });
 
-            GAME.capacity = capacity;
-            let net = generation - consumption;
-            GAME.energy += net * dt;
+            // 4. Resolve Water
+            let netW = wGen - wCon;
+            GAME.water = Math.max(0, Math.min(GAME.waterCapacity, GAME.water + netW * dt));
+            let hasWater = GAME.water > 0 || wGen >= wCon;
+            if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
+            if(gCount === 0) hasWater = true;
 
-            if(GAME.energy > GAME.capacity) GAME.energy = GAME.capacity;
-            if(GAME.energy < 0) GAME.energy = 0;
-
-            let hasPower = GAME.energy > 0 || generation >= consumption;
-            if(GAME.capacity === 0 && generation < consumption) hasPower = false; 
-            if(lightCount === 0) hasPower = true; 
-
-            // -- PROGRESSION: DISCOVERY CHECKS --
-            
-            // 1. Discover Storage: Lights out at night without power
+            // -- PROGRESSION CHECKS --
             if (lightCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
-                GAME.blackoutObservationTime += dt;
-                if (GAME.blackoutObservationTime > 3) {
-                    KNOWLEDGE.understands_storage = true;
-                    updateUI(); 
-                }
-            } else if (hasPower) {
-                GAME.blackoutObservationTime = 0;
+                GAME.timers.blackout += dt;
+                if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
+            }
+            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
+                GAME.timers.wind += dt;
+                if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
+            }
+            // Rain Discovery
+            if (!KNOWLEDGE.understands_rain && isRaining) {
+                GAME.timers.rain += dt;
+                if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
+            }
+            // Ag Discovery (Build collector)
+            if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
+                KNOWLEDGE.understands_agriculture = true; updateUI();
+            }
+            // Pump Discovery (Garden runs out of water)
+            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0 && !hasWater && !isRaining) {
+                GAME.timers.drought += dt;
+                if (GAME.timers.drought > 4) { KNOWLEDGE.understands_pumping = true; updateUI(); }
             }
 
-            // 2. Discover Wind: Unlocked storage, but clouds/wind present
-            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind) {
-                if (GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
-                    GAME.windObservationTime += dt;
-                    if (GAME.windObservationTime > 4) { // Observe the windy/cloudy conditions
-                        KNOWLEDGE.understands_wind = true;
-                        updateUI();
-                    }
-                } else {
-                    GAME.windObservationTime = 0;
-                }
-            }
-
-            // Apply state to visuals
+            // Visual Updates
             GAME.nodes.forEach(n => {
                 if(n.type === 'battery') {
-                    let fillRatio = capacity > 0 ? GAME.energy / capacity : 0;
-                    n.fillMesh.scale.y += (Math.max(0.01, fillRatio) - n.fillMesh.scale.y) * 0.1;
+                    let fill = eCap > 0 ? GAME.energy / eCap : 0;
+                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
                     n.fillMesh.position.y = 0.2 + (1.2 * n.fillMesh.scale.y) / 2;
                 }
+                if(n.type === 'collector') {
+                    let fill = wCap > 0 ? GAME.water / wCap : 0;
+                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
+                    n.fillMesh.position.y = 0.1 + (0.9 * n.fillMesh.scale.y) / 2;
+                }
                 if(n.type === 'light') {
-                    let shouldBeOn = hasPower;
-                    if(shouldBeOn !== n.isOn) {
-                        n.isOn = shouldBeOn;
-                        n.bulb.material = shouldBeOn ? matLightOn : matLightOff;
-                        n.pLight.intensity = shouldBeOn ? 1.5 : 0;
+                    if(hasPower !== n.isOn) {
+                        n.isOn = hasPower;
+                        n.bulb.material = hasPower ? mats.lightOn : mats.lightOff;
+                        n.pLight.intensity = hasPower ? 1.5 : 0;
                     }
                 }
-                if(n.type === 'wind') {
-                    // Rotate based on wind speed
-                    n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
+                if(n.type === 'wind') n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
+                if(n.type === 'garden') {
+                    n.plants.forEach(p => {
+                        let targetScale = hasWater ? 1.0 : 0.1;
+                        p.scale.x += (targetScale - p.scale.x) * dt;
+                        p.scale.y = p.scale.z = p.scale.x;
+                        p.position.y = 0.2 + (p.scale.y * 0.2); // grow up slightly
+                    });
                 }
             });
 
-            uiEnergy.innerText = Math.floor(GAME.energy);
-            uiCap.innerText = Math.floor(GAME.capacity);
+            uiStats.e.innerText = Math.floor(GAME.energy); uiStats.c.innerText = Math.floor(GAME.capacity);
+            uiStats.w.innerText = Math.floor(GAME.water); uiStats.wc.innerText = Math.floor(GAME.waterCapacity);
 
-            // Win Condition
-            if(lightCount > 0 && hasPower) {
+            // Harmony Win Condition
+            if(lCount > 0 && gCount > 0 && hasPower && hasWater) {
                 GAME.stableTime += dt;
                 if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) {
-                    GAME.harmonyReached = true;
-                    uiBanner.style.opacity = 1;
+                    GAME.harmonyReached = true; uiBanner.style.opacity = 1;
                 }
-            } else if (lightCount > 0 && !hasPower) {
-                GAME.stableTime = 0; 
-            }
+            } else { GAME.stableTime = 0; }
+            
+            // Reference needed for discovery logic
+            var lightCount = lCount;
         }
 
         function animate() {
             requestAnimationFrame(animate);
             const dt = Math.min(clock.getDelta(), 0.1); 
-
             controls.update(); 
 
-            // Weather System Evolution (Using intersecting sine waves for natural variance)
+            // Weather System
             GAME.time += dt;
             GAME.weather.cloudCover = (Math.sin(GAME.time / 15) + 1) / 2 * (Math.sin(GAME.time / 25) + 1) / 2; 
-            // Wind speed varies between 0.1 and ~1.0
             GAME.weather.windSpeed = ((Math.cos(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 18) + 1) / 2) * 0.9 + 0.1;
+            // Rain kicks in when clouds > 0.65
+            GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
 
-            // Spawn Animations
+            // Spawn Anims
             GAME.nodes.forEach(n => {
                 if(n.group.scale.x < 1) {
-                    n.group.scale.x += dt * 4;
-                    n.group.scale.y += dt * 4;
-                    n.group.scale.z += dt * 4;
-                    if(n.group.scale.x > 1) n.group.scale.set(1,1,1);
+                    let s = n.group.scale.x + dt * 4;
+                    if(s > 1) s = 1;
+                    n.group.scale.set(s,s,s);
                 }
             });
 
-            // Day/Night Cycle
-            let cycleProgress = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
-            let angle = cycleProgress * Math.PI * 2 - (Math.PI / 2); 
+            // Sky & Sun
+            let cycle = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
+            let angle = cycle * Math.PI * 2 - (Math.PI / 2); 
+            sun.position.set(Math.cos(angle)*50, Math.sin(angle)*50, Math.sin(angle)*15); 
+            moon.position.set(-sun.position.x, -sun.position.y, -sun.position.z);
 
-            sun.position.x = Math.cos(angle) * 50;
-            sun.position.y = Math.sin(angle) * 50;
-            sun.position.z = Math.sin(angle) * 15; 
-
-            moon.position.x = -sun.position.x;
-            moon.position.y = -sun.position.y;
-            moon.position.z = -sun.position.z;
-
-            let sunHeight = Math.max(0, Math.sin(angle));
-            
-            // Sky colors mixed with weather
+            let sHeight = Math.max(0, Math.sin(angle));
             let isDay = sun.position.y > 0;
             
-            // 1. Blend clear day with clouds
-            let currentDayCol = colDayClear.clone().lerp(colDayCloud, GAME.weather.cloudCover);
-            // 2. Blend resulting day color with night
-            let targetBg = isDay ? currentDayCol : colNight;
+            let dayCol = colDayClear.clone().lerp(colDayCloud, GAME.weather.cloudCover);
+            let targetBg = isDay ? dayCol : colNight;
+            scene.background.lerp(targetBg, 0.05); scene.fog.color.lerp(targetBg, 0.05);
             
-            scene.background.lerp(targetBg, 0.05);
-            scene.fog.color.lerp(targetBg, 0.05);
+            sun.intensity = sHeight * 1.5 * (1.0 - (GAME.weather.cloudCover * 0.6));
+            ambientLight.intensity = isDay ? 0.4 + (sHeight * 0.2) * (1.0 - GAME.weather.cloudCover * 0.3) : 0.2;
+
+            GAME.nodes.forEach(n => { if(n.type === 'solar' && isDay) n.panel.lookAt(sun.position); });
+
+            updateSystems(dt, sHeight, isDay);
+
+            // Particles
+            const sPos = particlesSpore.geometry.attributes.position.array;
+            const rPos = particlesRain.geometry.attributes.position.array;
             
-            // Lighting adjustments based on sun height AND clouds
-            sun.intensity = sunHeight * 1.5 * (1.0 - (GAME.weather.cloudCover * 0.6));
-            ambientLight.intensity = isDay ? 0.4 + (sunHeight * 0.2) * (1.0 - GAME.weather.cloudCover * 0.3) : 0.2;
-
-            // Solar panels track sun
-            GAME.nodes.forEach(n => {
-                if(n.type === 'solar' && isDay) n.panel.lookAt(sun.position);
-            });
-
-            // Energy & Logic
-            updateEnergySystem(dt, sunHeight, isDay);
-
-            // Wind Particles Animation
-            const positions = particles.geometry.attributes.position.array;
-            for(let i=0; i<particleCount; i++) {
-                let x = positions[i*3];
-                let y = positions[i*3+1];
-                let z = positions[i*3+2];
-                
-                // Drift up slowly, blow across horizontally based on wind
-                y += dt * 0.5;
-                x += dt * GAME.weather.windSpeed * 15; // Wind pushes particles heavily
-                
-                if(y > 20 || x > (ISLAND_SIZE * 0.8)) {
-                    y = -5;
-                    x = -(ISLAND_SIZE * 0.8);
-                    z = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+            for(let i=0; i<pCount; i++) {
+                // Spores (Wind)
+                let sy = sPos[i*3+1] + dt * 0.5;
+                let sx = sPos[i*3] + dt * GAME.weather.windSpeed * 15; 
+                if(sy > 20 || sx > (ISLAND_SIZE * 0.8)) {
+                    sy = -5; sx = -(ISLAND_SIZE * 0.8);
+                    sPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
                 }
-                
-                positions[i*3] = x;
-                positions[i*3+1] = y;
-                positions[i*3+2] = z;
+                sPos[i*3] = sx; sPos[i*3+1] = sy;
+
+                // Rain
+                let ry = rPos[i*3+1] - dt * 30; // Fall fast
+                if(ry < -2) {
+                    ry = 20 + Math.random() * 10;
+                    rPos[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+                    rPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
+                }
+                rPos[i*3+1] = ry;
             }
-            particles.geometry.attributes.position.needsUpdate = true;
+            particlesSpore.geometry.attributes.position.needsUpdate = true;
+            particlesRain.geometry.attributes.position.needsUpdate = true;
+            
+            matRain.opacity = GAME.weather.rainIntensity * 0.6; // Fade rain in/out
 
             renderer.render(scene, camera);
         }
 
         animate();
-
     </script>
 </body>
 </html>
