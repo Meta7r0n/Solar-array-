@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - Ecosystem Stable</title>
+    <title>Solarpunk Sandbox - Kinetic Update</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -12,6 +12,7 @@
             --ui-bg: rgba(255, 255, 255, 0.85);
             --ui-active: #7cb06d;
             --ui-water: #4fa4d1;
+            --ui-mech: #d4a373;
             --text: #2c3e50;
         }
         body, html {
@@ -35,6 +36,8 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
             gap: 15px;
             background: var(--ui-bg);
             padding: 10px 20px;
@@ -42,6 +45,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             backdrop-filter: blur(5px);
             z-index: 10;
+            max-width: 90%;
         }
         .tool-btn {
             background: none;
@@ -75,6 +79,10 @@
         .tool-btn.active[data-type="pump"], .tool-btn.active[data-type="collector"] {
             background: var(--ui-water);
             box-shadow: 0 4px 15px rgba(79, 164, 209, 0.4);
+        }
+        .tool-btn.active[data-type="wheel"], .tool-btn.active[data-type="pipe"] {
+            background: var(--ui-mech);
+            box-shadow: 0 4px 15px rgba(212, 163, 115, 0.4);
         }
         #harmony-banner {
             position: absolute;
@@ -166,7 +174,8 @@
             understands_wind: false,          
             understands_rain: false,          
             understands_agriculture: false,   
-            understands_pumping: false        
+            understands_pumping: false,
+            understands_kinetic_energy: false // New: Discovered by observing dead pump in river
         };
 
         const NODE_REGISTRY = {
@@ -176,7 +185,9 @@
             'wind': { id: 'wind', icon: '🌀', req: ['understands_wind'] },
             'collector': { id: 'collector', icon: '🪣', req: ['understands_rain'] },
             'garden': { id: 'garden', icon: '🌱', req: ['understands_agriculture'] },
-            'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] }
+            'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] },
+            'wheel': { id: 'wheel', icon: '🎡', req: ['understands_kinetic_energy'] },
+            'pipe': { id: 'pipe', icon: '🛤️', req: ['understands_kinetic_energy'] }
         };
 
         // ==========================================
@@ -195,7 +206,7 @@
             time: 0, stableTime: 0, harmonyReached: false,
             
             // Progression Trackers
-            timers: { blackout: 0, wind: 0, rain: 0, drought: 0 },
+            timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0 },
             uiRenderedNodes: new Set(),
 
             weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
@@ -315,7 +326,7 @@
         islandGroup.add(islandRight);
         raycastTargets.push(islandRight);
 
-        // River Bed (Dirt underneath water)
+        // River Bed
         const bedGeo = new THREE.BoxGeometry(4, 3, ISLAND_SIZE);
         const riverBed = new THREE.Mesh(bedGeo, matDirt);
         riverBed.position.set(0, -2.5, 0);
@@ -324,10 +335,10 @@
         // River Water Plane
         const riverGeo = new THREE.BoxGeometry(4, 0.8, ISLAND_SIZE);
         const riverMesh = new THREE.Mesh(riverGeo, matRiver);
-        riverMesh.position.set(0, -0.6, 0); // Slightly below grass level
+        riverMesh.position.set(0, -0.6, 0); 
         riverMesh.receiveShadow = true;
         islandGroup.add(riverMesh);
-        raycastTargets.push(riverMesh); // Allow raycasting onto river for pumps
+        raycastTargets.push(riverMesh); 
 
         scene.add(islandGroup);
 
@@ -358,6 +369,7 @@
         const mats = {
             white: new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 }),
             wood: new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 }),
+            darkWood: new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 }),
             panel: new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 }),
             battEmpty: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }),
             battFill: new THREE.MeshStandardMaterial({ color: 0x4caf50, emissive: 0x4caf50, emissiveIntensity: 0.2 }),
@@ -457,6 +469,41 @@
                     group.add(p); node.plants.push(p);
                 }
             }
+            else if (type === 'wheel') {
+                const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
+                const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
+                b1.position.set(-0.8, 0.3, 0); b2.position.set(0.8, 0.3, 0);
+                b1.castShadow = b2.castShadow = true;
+                
+                const rotorGroup = new THREE.Group();
+                rotorGroup.position.set(0, 0.3, 0);
+                const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.8), mats.darkWood);
+                axle.rotation.z = Math.PI/2;
+                rotorGroup.add(axle);
+                
+                for(let i=0; i<6; i++) {
+                    const paddle = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), mats.wood);
+                    paddle.position.y = 0.4;
+                    paddle.castShadow = true;
+                    const piv = new THREE.Group();
+                    piv.rotation.x = (i * Math.PI*2)/6;
+                    piv.add(paddle);
+                    rotorGroup.add(piv);
+                }
+                group.add(b1, b2, rotorGroup);
+                node.rotor = rotorGroup;
+            }
+            else if (type === 'pipe') {
+                const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), mats.darkWood);
+                const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), mats.darkWood);
+                p1.position.set(0, 0.2, -0.6); p2.position.set(0, 0.2, 0.6);
+                const trough = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 1.8), mats.wood);
+                trough.position.y = 0.55;
+                const waterLine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 1.8), mats.water);
+                waterLine.position.y = 0.55;
+                p1.castShadow = p2.castShadow = trough.castShadow = true;
+                group.add(p1, p2, trough, waterLine);
+            }
 
             group.scale.set(0, 0, 0);
             scene.add(group);
@@ -489,8 +536,9 @@
 
                 if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
                     // Placement Constraints
-                    if (GAME.selectedType === 'pump' && nx !== 0) return; // Pumps only in river
-                    if (GAME.selectedType !== 'pump' && nx === 0) return; // Others only on land
+                    const isRiverTool = (GAME.selectedType === 'pump' || GAME.selectedType === 'wheel');
+                    if (isRiverTool && nx !== 0) return; // Must be in river
+                    if (!isRiverTool && nx === 0) return; // Must be on land
                     createNode(GAME.selectedType, nx, nz);
                 }
             }
@@ -522,8 +570,13 @@
             GAME.nodes.forEach(n => {
                 if(n.type === 'battery') eCap += 100;
                 if(n.type === 'collector') wCap += 50;
+                if(n.type === 'pipe') wCap += 25; // Passive water storage buffer
+                
                 if(n.type === 'solar') eGen += 10 * effSun;
                 if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
+                
+                if(n.type === 'wheel') wGen += 3; // Steady, free mechanical water
+
                 if(n.type === 'light') { eCon += 4; lCount++; }
                 if(n.type === 'garden') { wCon += 2; gCount++; }
             });
@@ -537,11 +590,13 @@
             if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
             if(lCount === 0) hasPower = true;
 
-            // 3. Resolve Pumps (Only work if grid has power)
+            // 3. Resolve Pumps
+            let pumpExists = false;
             GAME.nodes.forEach(n => {
                 if(n.type === 'pump') {
+                    pumpExists = true;
                     eCon += 5; // Heavy draw
-                    if (hasPower || eGen >= eCon) wGen += 10; // Pumps generate massive water
+                    if (hasPower || eGen >= eCon) wGen += 10; 
                 }
                 if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
             });
@@ -553,35 +608,32 @@
             if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
             if(gCount === 0) hasWater = true;
 
-            // -- PROGRESSION CHECKS (HOTFIXED SCOPING) --
-            
-            // 1. Storage Discovery (Lights lose power at night)
+            // -- PROGRESSION CHECKS --
             if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) {
                 GAME.timers.blackout += dt;
                 if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }
             }
-            
-            // 2. Wind Discovery (Bad weather observation after storage unlocked)
             if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.5 && GAME.weather.windSpeed > 0.5) {
                 GAME.timers.wind += dt;
                 if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }
             }
-            
-            // 3. Rain Discovery (Observe rain)
             if (!KNOWLEDGE.understands_rain && isRaining) {
                 GAME.timers.rain += dt;
                 if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }
             }
-            
-            // 4. Agriculture Discovery (Build collector and gather water)
             if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) {
                 KNOWLEDGE.understands_agriculture = true; updateUI();
             }
-            
-            // 5. Pump Discovery (Garden runs out of water when rain stops)
             if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0 && !hasWater && !isRaining) {
                 GAME.timers.drought += dt;
                 if (GAME.timers.drought > 4) { KNOWLEDGE.understands_pumping = true; updateUI(); }
+            }
+            // NEW: Observe dead electrical pump in flowing river to learn kinetic energy
+            if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists && !hasPower) {
+                GAME.timers.river += dt;
+                if (GAME.timers.river > 4) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
+            } else if (hasPower) {
+                GAME.timers.river = 0; // Reset if power restored
             }
 
             // Visual Updates
@@ -604,6 +656,7 @@
                     }
                 }
                 if(n.type === 'wind') n.rotor.rotation.z -= dt * GAME.weather.windSpeed * 8;
+                if(n.type === 'wheel') n.rotor.rotation.x -= dt * 2; // Constant river flow
                 if(n.type === 'garden') {
                     n.plants.forEach(p => {
                         let targetScale = hasWater ? 1.0 : 0.1;
@@ -617,7 +670,6 @@
             uiStats.e.innerText = Math.floor(GAME.energy); uiStats.c.innerText = Math.floor(GAME.capacity);
             uiStats.w.innerText = Math.floor(GAME.water); uiStats.wc.innerText = Math.floor(GAME.waterCapacity);
 
-            // Harmony Win Condition
             if(lCount > 0 && gCount > 0 && hasPower && hasWater) {
                 GAME.stableTime += dt;
                 if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) {
@@ -633,11 +685,8 @@
 
             // Weather System
             GAME.time += dt;
-            // Slightly adjusted frequencies to ensure storms trigger properly for playtesting
             GAME.weather.cloudCover = (Math.sin(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 22) + 1) / 2; 
             GAME.weather.windSpeed = ((Math.cos(GAME.time / 8) + 1) / 2 * (Math.sin(GAME.time / 15) + 1) / 2) * 0.9 + 0.1;
-            
-            // Rain kicks in when clouds > 0.65
             GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
 
             // Spawn Anims
@@ -674,7 +723,6 @@
             const rPos = particlesRain.geometry.attributes.position.array;
             
             for(let i=0; i<pCount; i++) {
-                // Spores (Wind)
                 let sy = sPos[i*3+1] + dt * 0.5;
                 let sx = sPos[i*3] + dt * GAME.weather.windSpeed * 15; 
                 if(sy > 20 || sx > (ISLAND_SIZE * 0.8)) {
@@ -683,8 +731,7 @@
                 }
                 sPos[i*3] = sx; sPos[i*3+1] = sy;
 
-                // Rain
-                let ry = rPos[i*3+1] - dt * 30; // Fall fast
+                let ry = rPos[i*3+1] - dt * 30; 
                 if(ry < -2) {
                     ry = 20 + Math.random() * 10;
                     rPos[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5;
