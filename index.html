@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox - v0.6.0</title>
+    <title>Solarpunk Sandbox - v0.6.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -129,9 +129,36 @@
         .icon-energy { color: #f39c12; font-size: 1.1rem; }
         .icon-water { color: #3498db; font-size: 1.1rem; }
         .icon-compost { color: #8b5a2b; font-size: 1.1rem; }
-        #controls-hint {
+        
+        /* NEW: Dev Toggle Styles */
+        #dev-toggle-container {
             position: absolute;
             top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            color: var(--text);
+            font-weight: bold;
+            z-index: 100;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+        }
+        #dev-toggle-container input {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--ui-active);
+        }
+        
+        #controls-hint {
+            position: absolute;
+            top: 70px; /* Moved down to accommodate dev toggle */
             right: 20px;
             background: rgba(255,255,255,0.5);
             padding: 8px 15px;
@@ -161,6 +188,10 @@
         </div>
     </div>
 
+    <label id="dev-toggle-container">
+        <input type="checkbox" id="dev-mode-toggle"> Unlock All
+    </label>
+
     <div id="controls-hint">Drag to Rotate &bull; Pinch to Zoom</div>
 
     <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The biome is self-sustaining.</span></div>
@@ -171,7 +202,7 @@
         // ==========================================
         // 🧠 PROGRESSION ARCHITECTURE & PHILOSOPHY
         // ==========================================
-        const DEV_MODE = false; 
+        let DEV_MODE = false; 
 
         const DISCIPLINES = {
             MECHANICAL: 'mechanical',       
@@ -182,16 +213,17 @@
             CHEMISTRY: 'chemistry'
         };
 
+        // Natural Knowledge state
         const KNOWLEDGE = {
             understands_daylight: true,       
             understands_power_flow: true,     
-            understands_storage: DEV_MODE,       
-            understands_wind: DEV_MODE,          
-            understands_rain: DEV_MODE,          
-            understands_agriculture: DEV_MODE,   
-            understands_pumping: DEV_MODE,
-            understands_kinetic_energy: DEV_MODE,
-            understands_decay: DEV_MODE // New: Discovered by observing falling leaves
+            understands_storage: false,       
+            understands_wind: false,          
+            understands_rain: false,          
+            understands_agriculture: false,   
+            understands_pumping: false,
+            understands_kinetic_energy: false,
+            understands_decay: false 
         };
 
         const NODE_REGISTRY = {
@@ -225,7 +257,7 @@
             time: 0, stableTime: 0, harmonyReached: false,
             
             timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0, decay: 0 },
-            uiRenderedNodes: new Set(),
+            uiRenderedNodes: new Set(), // Used to track what is currently built in the UI
 
             weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
         };
@@ -234,21 +266,34 @@
         // 🖥️ UI & DISCOVERY SYSTEM
         // ==========================================
         const uiContainer = document.getElementById('ui-container');
+        const devToggle = document.getElementById('dev-mode-toggle');
 
+        // Dev Toggle Listener
+        devToggle.addEventListener('change', (e) => {
+            DEV_MODE = e.target.checked;
+            updateUI(); // Immediately redraw the UI
+        });
+
+        // Refactored to properly redraw/clear UI elements
         function updateUI() {
+            uiContainer.innerHTML = ''; // Clear out old buttons completely
+            GAME.uiRenderedNodes.clear();
             let selectedTypeExists = false;
+
             for (const [key, node] of Object.entries(NODE_REGISTRY)) {
-                const hasKnowledge = node.req.every(req => KNOWLEDGE[req]);
+                // If Dev Mode is ON, pretend we have all knowledge. Otherwise, check real knowledge.
+                const hasKnowledge = DEV_MODE || node.req.every(req => KNOWLEDGE[req]);
                 
-                if (hasKnowledge && !GAME.uiRenderedNodes.has(key)) {
+                if (hasKnowledge) {
                     const btn = document.createElement('button');
                     btn.className = 'tool-btn';
                     btn.dataset.type = key;
                     btn.innerHTML = node.icon;
                     
-                    if (GAME.uiRenderedNodes.size === 0) {
+                    if (key === GAME.selectedType || (GAME.uiRenderedNodes.size === 0 && !selectedTypeExists)) {
                         btn.classList.add('active');
                         GAME.selectedType = key;
+                        selectedTypeExists = true;
                     }
 
                     btn.addEventListener('pointerdown', (e) => {
@@ -261,8 +306,9 @@
                     uiContainer.appendChild(btn);
                     GAME.uiRenderedNodes.add(key);
                 }
-                if (key === GAME.selectedType && hasKnowledge) selectedTypeExists = true;
             }
+
+            // Fallback selection if the tool we had selected just got locked/removed
             if (!selectedTypeExists && GAME.uiRenderedNodes.size > 0) {
                 const firstBtn = uiContainer.querySelector('.tool-btn');
                 if(firstBtn) {
@@ -271,7 +317,8 @@
                 }
             }
         }
-        updateUI();
+        
+        updateUI(); // Initial run
 
         // ==========================================
         // 🌍 THREE.JS SETUP & ENGINE
@@ -393,7 +440,7 @@
             water: new THREE.MeshStandardMaterial({ color: 0x3498db, emissive: 0x3498db, emissiveIntensity: 0.2 }),
             dirt: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1.0 }),
             plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 }),
-            leaf: new THREE.MeshStandardMaterial({ color: 0xa8b031, roughness: 0.8 }), // Dying leaf color
+            leaf: new THREE.MeshStandardMaterial({ color: 0xa8b031, roughness: 0.8 }), 
             fireOff: new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }),
             fireOn: new THREE.MeshStandardMaterial({ color: 0xff5500, emissive: 0xff4400, emissiveIntensity: 1.5 })
         };
@@ -483,13 +530,12 @@
                     p.scale.set(0.1, 0.1, 0.1); p.castShadow = true;
                     group.add(p); node.plants.push(p);
                 }
-                // Falling Leaf Animation Mesh
                 const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.1), mats.leaf);
                 leaf.position.set(0, 1.5, 0);
                 leaf.visible = false;
                 group.add(leaf);
                 node.leaf = leaf;
-                node.leafFallPhase = Math.random(); // offset animations
+                node.leafFallPhase = Math.random(); 
             }
             else if (type === 'wheel') {
                 const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), mats.darkWood);
@@ -537,7 +583,7 @@
                 const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.5), mats.turbine);
                 stack.position.set(0.3, 1.5, -0.3); stack.castShadow = true;
                 const core = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.1), mats.fireOff);
-                core.position.set(0, 0.5, 0.71); // Front face
+                core.position.set(0, 0.5, 0.71); 
                 const pLight = new THREE.PointLight(0xff5500, 0, 8);
                 pLight.position.set(0, 0.5, 1.0);
                 group.add(base, stack, core, pLight);
@@ -555,12 +601,12 @@
         let pDown = new THREE.Vector2(), pTime = 0;
 
         window.addEventListener('pointerdown', (e) => {
-            if(e.target.closest('#ui-container')) return;
+            if(e.target.closest('#ui-container') || e.target.closest('#dev-toggle-container')) return;
             pDown.set(e.clientX, e.clientY); pTime = performance.now();
         });
 
         window.addEventListener('pointerup', (e) => {
-            if(e.target.closest('#ui-container')) return;
+            if(e.target.closest('#ui-container') || e.target.closest('#dev-toggle-container')) return;
             if (pDown.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 10 || performance.now() - pTime > 300) return;
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -625,7 +671,7 @@
             GAME.capacity = eCap; GAME.waterCapacity = wCap; GAME.compostCapacity = cCap;
 
             // 2. Resolve Water
-            let hasPowerForPumpCheck = (GAME.energy > 0 || eGen > 0); // Quick pre-check
+            let hasPowerForPumpCheck = (GAME.energy > 0 || eGen > 0); 
             let pumpExists = false;
             GAME.nodes.forEach(n => {
                 if(n.type === 'pump') {
@@ -643,8 +689,8 @@
             if(gCount === 0) hasWater = true;
 
             // 3. Resolve Compost & Biomass
-            let cGen = (hasWater && gCount > 0) ? (gCount * 1.0) : 0; // Gardens generate waste
-            let cCon = bCount * 2.0; // Biomass burns waste
+            let cGen = (hasWater && gCount > 0) ? (gCount * 1.0) : 0; 
+            let cCon = bCount * 2.0; 
             
             let netC = cGen - cCon;
             GAME.compost = Math.max(0, Math.min(GAME.compostCapacity, GAME.compost + netC * dt));
@@ -653,7 +699,6 @@
             if(GAME.compostCapacity === 0 && cGen < cCon) hasCompost = false;
 
             if (hasCompost && bCount > 0) {
-                // Biomass acts as a massive emergency generator
                 eGen += bCount * 15.0; 
             }
 
@@ -688,7 +733,6 @@
                 GAME.timers.river += dt;
                 if (GAME.timers.river > 5) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }
             }
-            // NEW: Observe dying leaves falling from healthy garden to learn about decay
             if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_decay && gCount > 0 && hasWater) {
                 GAME.timers.decay += dt;
                 if (GAME.timers.decay > 6) { KNOWLEDGE.understands_decay = true; updateUI(); }
@@ -712,7 +756,7 @@
                     n.fillMesh.position.y = 0.05 + (0.7 * n.fillMesh.scale.y) / 2;
                 }
                 if(n.type === 'biomass') {
-                    let isBurning = (hasCompost && eCon > 0); // Only burns if there's load and fuel
+                    let isBurning = (hasCompost && eCon > 0); 
                     if(isBurning !== n.isOn) {
                         n.isOn = isBurning;
                         n.core.material = isBurning ? mats.fireOn : mats.fireOff;
@@ -736,10 +780,9 @@
                         p.position.y = 0.2 + (p.scale.y * 0.2); 
                     });
 
-                    // Localized falling leaf animation for discovery
                     if (hasWater) {
                         n.leaf.visible = true;
-                        n.leafFallPhase += dt * 0.5; // Controls fall speed
+                        n.leafFallPhase += dt * 0.5; 
                         if (n.leafFallPhase > 1) n.leafFallPhase = 0;
                         n.leaf.position.y = 1.5 - (n.leafFallPhase * 1.4);
                         n.leaf.rotation.z = Math.sin(n.leafFallPhase * 10) * 0.5;
