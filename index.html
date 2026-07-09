@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Solarpunk Sandbox</title>
+    <title>Solarpunk Sandbox - v0.9.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
@@ -11,158 +11,220 @@
             --bg: #1a2639;
             --ui-bg: rgba(255, 255, 255, 0.85);
             --ui-active: #7cb06d;
+            --ui-water: #4fa4d1;
+            --ui-mech: #d4a373;
+            --ui-chem: #c08552;
+            --ui-smart: #9b59b6;
+            --ui-h2: #00cec9;
+            --ui-mat: #7f8c8d;
             --text: #2c3e50;
         }
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg);
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: var(--bg);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             touch-action: none;
         }
-        #canvas-container {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
+        #canvas-container { width: 100%; height: 100%; display: block; }
         #ui-container {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
-            background: var(--ui-bg);
-            padding: 10px 20px;
-            border-radius: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            backdrop-filter: blur(5px);
-            z-index: 10;
+            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+            background: var(--ui-bg); padding: 10px 15px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); backdrop-filter: blur(5px);
+            z-index: 10; max-width: 95%; max-height: 40vh; overflow-y: auto;
         }
         .tool-btn {
-            background: none;
-            border: 2px solid transparent;
-            padding: 12px 16px;
-            font-size: 1.5rem;
-            border-radius: 25px;
-            cursor: pointer;
-            color: var(--text);
-            font-weight: bold;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            width: 60px;
-            height: 60px;
+            background: none; border: 2px solid transparent; padding: 8px;
+            font-size: 1.2rem; border-radius: 20px; cursor: pointer;
+            color: var(--text); font-weight: bold; transition: all 0.4s ease;
+            display: flex; align-items: center; justify-content: center;
+            width: 45px; height: 45px; user-select: none;
+            -webkit-tap-highlight-color: transparent; animation: fadeIn 0.5s forwards ease-out;
         }
-        .tool-btn:active {
-            transform: scale(0.95);
-        }
-        .tool-btn.active {
-            background: var(--ui-active);
-            color: white;
-            box-shadow: 0 4px 15px rgba(124, 176, 109, 0.4);
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .tool-btn:active { transform: scale(0.95); }
+        .tool-btn.active { background: var(--ui-active); color: white; box-shadow: 0 4px 15px rgba(124, 176, 109, 0.4); }
+        .tool-btn.active[data-type="pump"], .tool-btn.active[data-type="collector"] { background: var(--ui-water); box-shadow: 0 4px 15px rgba(79, 164, 209, 0.4); }
+        .tool-btn.active[data-type="wheel"], .tool-btn.active[data-type="pipe"] { background: var(--ui-mech); box-shadow: 0 4px 15px rgba(212, 163, 115, 0.4); }
+        .tool-btn.active[data-type="composter"], .tool-btn.active[data-type="biomass"] { background: var(--ui-chem); box-shadow: 0 4px 15px rgba(192, 133, 82, 0.4); }
+        .tool-btn.active[data-type="dnsensor"], .tool-btn.active[data-type="msensor"] { background: var(--ui-smart); box-shadow: 0 4px 15px rgba(155, 89, 182, 0.4); }
+        .tool-btn.active[data-type="electrolyzer"], .tool-btn.active[data-type="h2tank"], .tool-btn.active[data-type="fuelcell"] { background: var(--ui-h2); box-shadow: 0 4px 15px rgba(0, 206, 201, 0.4); }
+        .tool-btn.active[data-type="mill"], .tool-btn.active[data-type="quarry"], .tool-btn.active[data-type="platform"] { background: var(--ui-mat); box-shadow: 0 4px 15px rgba(127, 140, 141, 0.4); }
+        
         #harmony-banner {
-            position: absolute;
-            top: 15%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.9);
-            color: #7cb06d;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            box-shadow: 0 10px 30px rgba(124, 176, 109, 0.3);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 2s ease-in-out;
-            z-index: 20;
-            text-align: center;
+            position: absolute; top: 15%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95); color: #7cb06d; padding: 15px 30px;
+            border-radius: 30px; font-size: 1.5rem; font-weight: bold;
+            box-shadow: 0 10px 30px rgba(124, 176, 109, 0.3); opacity: 0;
+            pointer-events: none; transition: opacity 2s ease-in-out; z-index: 20; text-align: center;
         }
         #status-bar {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: var(--ui-bg);
-            padding: 10px 20px;
-            border-radius: 20px;
-            color: var(--text);
-            font-size: 1rem;
-            font-weight: 600;
-            pointer-events: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            position: absolute; top: 20px; left: 20px; background: var(--ui-bg);
+            padding: 12px 15px; border-radius: 15px; color: var(--text);
+            font-size: 0.85rem; font-weight: 600; pointer-events: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px;
         }
+        .stat-row { display: flex; align-items: center; gap: 8px; }
+        .icon-energy { color: #f39c12; font-size: 1.1rem; }
+        .icon-water { color: #3498db; font-size: 1.1rem; }
+        .icon-compost { color: #8b5a2b; font-size: 1.1rem; }
+        .icon-h2 { color: #00cec9; font-size: 1.1rem; }
+        .icon-mat { color: #7f8c8d; font-size: 1.1rem; }
+        
+        #dev-toggle-container {
+            position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.85);
+            padding: 10px 15px; border-radius: 15px; font-size: 0.9rem; color: var(--text);
+            font-weight: bold; z-index: 100; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 8px; backdrop-filter: blur(5px);
+        }
+        #dev-toggle-container input { cursor: pointer; width: 16px; height: 16px; accent-color: var(--ui-active); }
         #controls-hint {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255,255,255,0.5);
-            padding: 8px 15px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            color: var(--text);
-            pointer-events: none;
+            position: absolute; top: 70px; right: 20px; background: rgba(255,255,255,0.5);
+            padding: 8px 15px; border-radius: 15px; font-size: 0.8rem; color: var(--text); pointer-events: none;
         }
     </style>
 </head>
 <body>
 
     <div id="canvas-container"></div>
-    
     <div id="status-bar">
-        Energy: <span id="val-energy">0</span> / <span id="val-cap">0</span>
+        <div class="stat-row"><span class="icon-energy">⚡</span> <span id="val-energy">0</span> / <span id="val-cap">0</span> kWh</div>
+        <div class="stat-row"><span class="icon-water">💧</span> <span id="val-water">0</span> / <span id="val-wcap">0</span> L</div>
+        <div class="stat-row"><span class="icon-compost">🍂</span> <span id="val-compost">0</span> / <span id="val-ccap">0</span> kg</div>
+        <div class="stat-row" id="row-h2" style="display: none;"><span class="icon-h2">🫧</span> <span id="val-h2">0</span> / <span id="val-h2cap">0</span> m³</div>
+        <div class="stat-row" id="row-mat" style="display: none;">
+            <span class="icon-mat">🪵</span> <span id="val-wood">0</span> &nbsp;|&nbsp; 
+            <span class="icon-mat">🪨</span> <span id="val-stone">0</span>
+        </div>
     </div>
-
-    <div id="controls-hint">
-        Drag to Rotate &bull; Pinch to Zoom
-    </div>
-
-    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The grid is self-sustaining.</span></div>
-
-    <div id="ui-container">
-        <button class="tool-btn active" data-type="solar">☀️</button>
-        <button class="tool-btn" data-type="battery">🔋</button>
-        <button class="tool-btn" data-type="light">💡</button>
-    </div>
+    <label id="dev-toggle-container"><input type="checkbox" id="dev-mode-toggle"> Unlock All</label>
+    <div id="controls-hint">Drag to Rotate &bull; Pinch to Zoom</div>
+    <div id="harmony-banner">Harmony Achieved<br><span style="font-size: 0.9rem; font-weight: normal; color: #555;">The biome is self-sustaining.</span></div>
+    <div id="ui-container"></div>
 
     <script>
-        // --- GAME CONFIG & STATE ---
+        // ==========================================
+        // 🧠 GAME CONFIG & KNOWLEDGE LOGIC
+        // ==========================================
+        let DEV_MODE = false; 
+
+        const KNOWLEDGE = {
+            understands_daylight: true,       
+            understands_power_flow: true,     
+            understands_storage: false,       
+            understands_wind: false,          
+            understands_rain: false,          
+            understands_agriculture: false,   
+            understands_pumping: false,
+            understands_kinetic_energy: false,
+            understands_decay: false,
+            understands_efficiency: false,
+            understands_electrolysis: false,
+            understands_materials: false,    // New: Discovered by observing trees/rocks when compost > 10
+            understands_terraforming: false  // Locked to DEV_MODE for now
+        };
+
+        const NODE_REGISTRY = {
+            'solar': { id: 'solar', icon: '☀️', req: ['understands_daylight'] },
+            'light': { id: 'light', icon: '💡', req: ['understands_power_flow'] },
+            'battery': { id: 'battery', icon: '🔋', req: ['understands_storage'] },
+            'wind': { id: 'wind', icon: '🌀', req: ['understands_wind'] },
+            'collector': { id: 'collector', icon: '🪣', req: ['understands_rain'] },
+            'garden': { id: 'garden', icon: '🌱', req: ['understands_agriculture'] },
+            'pump': { id: 'pump', icon: '🚰', req: ['understands_pumping'] },
+            'wheel': { id: 'wheel', icon: '🎡', req: ['understands_kinetic_energy'] },
+            'pipe': { id: 'pipe', icon: '🛤️', req: ['understands_kinetic_energy'] },
+            'composter': { id: 'composter', icon: '🍂', req: ['understands_decay'] },
+            'biomass': { id: 'biomass', icon: '🔥', req: ['understands_decay'] },
+            'dnsensor': { id: 'dnsensor', icon: '📡', req: ['understands_efficiency'] },
+            'msensor': { id: 'msensor', icon: '🎛️', req: ['understands_efficiency'] },
+            'electrolyzer': { id: 'electrolyzer', icon: '🫧', req: ['understands_electrolysis'] },
+            'h2tank': { id: 'h2tank', icon: '🛢️', req: ['understands_electrolysis'] },
+            'fuelcell': { id: 'fuelcell', icon: '💠', req: ['understands_electrolysis'] },
+            'mill': { id: 'mill', icon: '🪚', req: ['understands_materials'] },
+            'quarry': { id: 'quarry', icon: '⛏️', req: ['understands_materials'] },
+            'platform': { id: 'platform', icon: '🧱', req: ['understands_terraforming'] } // DEV ONLY
+        };
+
         const CYCLE_DURATION = 60; 
         const GRID_SIZE = 2;
         const ISLAND_SIZE = 40; 
-        const GRID_EXTENT = (ISLAND_SIZE / 2) - 2; // Keep slightly away from absolute edge
+        const GRID_EXTENT = (ISLAND_SIZE / 2) - 2;
         
         const GAME = {
-            energy: 0,
-            capacity: 0,
-            nodes: [],
-            gridMap: new Set(),
+            energy: 0, capacity: 0,
+            water: 0, waterCapacity: 0,
+            compost: 0, compostCapacity: 0,
+            h2: 0, h2Capacity: 0,
+            wood: 0, stone: 0, woodStrain: 0, stoneStrain: 0, ecology: 10,
+            nodes: [], naturalNodes: [], gridMap: new Set(), batteryPositions: [], collectorPositions: [],
             selectedType: 'solar',
-            time: 0,
-            stableTime: 0,
-            harmonyReached: false
+            time: 0, stableTime: 0, harmonyReached: false,
+            isWastingEnergy: false, isWastingWater: false,
+            timers: { blackout: 0, wind: 0, rain: 0, drought: 0, river: 0, decay: 0, waste: 0, chem: 0, mats: 0 },
+            uiRenderedNodes: new Set(),
+            weather: { cloudCover: 0, windSpeed: 0.2, rainIntensity: 0 }
         };
 
-        // --- THREE.JS SETUP ---
+        // ==========================================
+        // 🖥️ UI SYSTEM
+        // ==========================================
+        const uiContainer = document.getElementById('ui-container');
+        const h2Row = document.getElementById('row-h2');
+        const matRow = document.getElementById('row-mat');
+        
+        document.getElementById('dev-mode-toggle').addEventListener('change', (e) => {
+            DEV_MODE = e.target.checked;
+            KNOWLEDGE.understands_terraforming = DEV_MODE; // Dynamically unlock terraforming
+            updateUI();
+        });
+
+        function updateUI() {
+            uiContainer.innerHTML = ''; 
+            GAME.uiRenderedNodes.clear();
+            let selectedTypeExists = false;
+
+            h2Row.style.display = (DEV_MODE || KNOWLEDGE.understands_electrolysis) ? "flex" : "none";
+            matRow.style.display = (DEV_MODE || KNOWLEDGE.understands_materials) ? "flex" : "none";
+
+            for (const [key, node] of Object.entries(NODE_REGISTRY)) {
+                if (DEV_MODE || node.req.every(req => KNOWLEDGE[req])) {
+                    const btn = document.createElement('button');
+                    btn.className = 'tool-btn'; btn.dataset.type = key; btn.innerHTML = node.icon;
+                    
+                    if (key === GAME.selectedType || (GAME.uiRenderedNodes.size === 0 && !selectedTypeExists)) {
+                        btn.classList.add('active'); GAME.selectedType = key; selectedTypeExists = true;
+                    }
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.stopPropagation();
+                        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active'); GAME.selectedType = key;
+                    });
+                    uiContainer.appendChild(btn); GAME.uiRenderedNodes.add(key);
+                }
+            }
+            if (!selectedTypeExists && GAME.uiRenderedNodes.size > 0) {
+                const firstBtn = uiContainer.querySelector('.tool-btn');
+                if(firstBtn) { firstBtn.classList.add('active'); GAME.selectedType = firstBtn.dataset.type; }
+            }
+        }
+        updateUI();
+
+        // ==========================================
+        // 🌍 THREE.JS ENGINE SETUP
+        // ==========================================
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        // Colors
-        const colDay = new THREE.Color(0x8bd4e8);
+        const colDayClear = new THREE.Color(0x8bd4e8);
+        const colDayCloud = new THREE.Color(0x708090);
         const colNight = new THREE.Color(0x0a1128);
-        scene.background = colDay;
-        scene.fog = new THREE.Fog(colDay, 30, 100);
+        
+        scene.background = colDayClear.clone();
+        scene.fog = new THREE.Fog(colDayClear.clone(), 30, 100);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 150);
-        camera.position.set(30, 35, 30);
+        camera.position.set(35, 45, 35);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -171,195 +233,310 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
-        // --- CAMERA CONTROLS ---
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.enablePan = false; // Keep focus on island
-        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent viewing from totally underneath
-        controls.minDistance = 15;
-        controls.maxDistance = 80;
-        controls.target.set(0, 0, 0);
+        controls.enableDamping = true; controls.dampingFactor = 0.05;
+        controls.enablePan = false; controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+        controls.minDistance = 15; controls.maxDistance = 80; controls.target.set(0, 0, 0);
 
-        // --- LIGHTING ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambientLight);
-
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambientLight);
         const sun = new THREE.DirectionalLight(0xfff5b6, 1.5);
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 2048; // Higher res for larger island
-        sun.shadow.mapSize.height = 2048;
-        sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 100;
-        sun.shadow.camera.left = -30;
-        sun.shadow.camera.right = 30;
-        sun.shadow.camera.top = 30;
-        sun.shadow.camera.bottom = -30;
-        sun.shadow.bias = -0.001;
-        scene.add(sun);
+        sun.castShadow = true; sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+        sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+        sun.shadow.bias = -0.001; scene.add(sun);
+        const moon = new THREE.DirectionalLight(0x7c9bc2, 0.2); scene.add(moon);
 
-        const moon = new THREE.DirectionalLight(0x7c9bc2, 0.2);
-        scene.add(moon);
+        // --- OPTIMIZATION: GEOMETRY & MATERIAL CACHE ---
+        const MATS = {
+            white: new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 }),
+            wood: new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 }),
+            darkWood: new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 }),
+            panel: new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 }),
+            battEmpty: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }),
+            battFill: new THREE.MeshStandardMaterial({ color: 0x4caf50, emissive: 0x4caf50, emissiveIntensity: 0.2 }),
+            lightOff: new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 }),
+            lightOn: new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 }),
+            turbine: new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.4 }),
+            water: new THREE.MeshStandardMaterial({ color: 0x3498db, emissive: 0x3498db, emissiveIntensity: 0.2 }),
+            dirt: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 1.0 }),
+            plant: new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.6 }),
+            leaf: new THREE.MeshStandardMaterial({ color: 0xa8b031, roughness: 0.8 }), 
+            fireOff: new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }),
+            fireOn: new THREE.MeshStandardMaterial({ color: 0xff5500, emissive: 0xff4400, emissiveIntensity: 1.5 }),
+            sensor: new THREE.MeshStandardMaterial({ color: 0x9b59b6, roughness: 0.3 }),
+            h2Metal: new THREE.MeshStandardMaterial({ color: 0xbdc3c7, roughness: 0.3, metalness: 0.6 }),
+            h2Glow: new THREE.MeshStandardMaterial({ color: 0x00cec9, emissive: 0x00cec9, emissiveIntensity: 1.5 }),
+            stone: new THREE.MeshStandardMaterial({ color: 0x7f8c8d, roughness: 0.9 }),
+            bird: new THREE.MeshBasicMaterial({ color: 0x2c3e50 })
+        };
 
-        // --- ENVIRONMENT ---
-        const matGrass = new THREE.MeshStandardMaterial({ color: 0x7cb06d, roughness: 0.9 });
-        const matDirt = new THREE.MeshStandardMaterial({ color: 0x8c7356, roughness: 1.0 });
-        
+        const GEOS = {
+            baseBox: new THREE.BoxGeometry(1.2, 0.2, 1.2),
+            baseLarge: new THREE.BoxGeometry(1.4, 0.2, 1.4),
+            baseSmall: new THREE.BoxGeometry(0.8, 0.2, 0.8),
+            pole: new THREE.CylinderGeometry(0.1, 0.1, 0.8),
+            tallPole: new THREE.CylinderGeometry(0.08, 0.08, 2),
+            panel: new THREE.BoxGeometry(1.6, 0.1, 1.6),
+            battShell: new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16),
+            battCore: new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16),
+            bulb: new THREE.SphereGeometry(0.3, 16, 16),
+            turbBase: new THREE.BoxGeometry(1.0, 0.3, 1.0),
+            turbTower: new THREE.CylinderGeometry(0.15, 0.25, 4, 8),
+            turbNacelle: new THREE.BoxGeometry(0.6, 0.5, 0.8),
+            turbHub: new THREE.SphereGeometry(0.2, 8, 8),
+            turbBlade: new THREE.BoxGeometry(0.1, 1.8, 0.05),
+            barrel: new THREE.CylinderGeometry(0.6, 0.5, 1.0, 12),
+            barrelFill: new THREE.CylinderGeometry(0.55, 0.55, 0.9, 12),
+            gardenDirt: new THREE.BoxGeometry(1.8, 0.2, 1.8),
+            plantSpore: new THREE.SphereGeometry(0.2, 8, 8),
+            leaf: new THREE.BoxGeometry(0.15, 0.02, 0.1),
+            sensorDish: new THREE.CylinderGeometry(0.4, 0.05, 0.2, 12),
+            tankBody: new THREE.CylinderGeometry(0.6, 0.6, 1.2, 16),
+            tankCap: new THREE.SphereGeometry(0.6, 16, 16),
+            cellCore: new THREE.BoxGeometry(0.6, 0.6, 0.6),
+            trunk: new THREE.CylinderGeometry(0.2, 0.3, 1.5, 8),
+            pine: new THREE.ConeGeometry(1.2, 3, 8),
+            boulder: new THREE.DodecahedronGeometry(0.8, 0),
+            platform: new THREE.BoxGeometry(2, 0.5, 2)
+        };
+
+        // --- TERRAFORMING (Split Island & River) ---
         const islandGroup = new THREE.Group();
+        const raycastTargets = [];
+        const widthHalf = (ISLAND_SIZE - 4) / 2;
         
-        const topGeo = new THREE.BoxGeometry(ISLAND_SIZE, 1, ISLAND_SIZE);
-        const islandTop = new THREE.Mesh(topGeo, matGrass);
-        islandTop.position.y = -0.5;
-        islandTop.receiveShadow = true;
-        islandTop.castShadow = true;
-        islandGroup.add(islandTop);
+        const islandLeft = new THREE.Mesh(new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE), MATS.plant);
+        islandLeft.position.set(-widthHalf/2 - 2, -2, 0); islandLeft.receiveShadow = true; islandGroup.add(islandLeft); raycastTargets.push(islandLeft);
 
-        const baseGeo = new THREE.BoxGeometry(ISLAND_SIZE - 2, 4, ISLAND_SIZE - 2);
-        const islandBase = new THREE.Mesh(baseGeo, matDirt);
-        islandBase.position.y = -3;
-        islandBase.receiveShadow = true;
-        islandBase.castShadow = true;
-        islandGroup.add(islandBase);
+        const islandRight = new THREE.Mesh(new THREE.BoxGeometry(widthHalf, 4, ISLAND_SIZE), MATS.plant);
+        islandRight.position.set(widthHalf/2 + 2, -2, 0); islandRight.receiveShadow = true; islandGroup.add(islandRight); raycastTargets.push(islandRight);
 
+        const riverBed = new THREE.Mesh(new THREE.BoxGeometry(4, 3, ISLAND_SIZE), MATS.dirt);
+        riverBed.position.set(0, -2.5, 0); islandGroup.add(riverBed);
+
+        const riverMesh = new THREE.Mesh(new THREE.BoxGeometry(4, 0.8, ISLAND_SIZE), MATS.water);
+        riverMesh.position.set(0, -0.6, 0); riverMesh.receiveShadow = true; islandGroup.add(riverMesh); raycastTargets.push(riverMesh); 
         scene.add(islandGroup);
 
-        // Ambient Spores
-        const particleGeo = new THREE.BufferGeometry();
-        const particleCount = 200;
-        const posArray = new Float32Array(particleCount * 3);
-        for(let i=0; i<particleCount*3; i++) {
-            posArray[i] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
-        }
-        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.5 });
-        const particles = new THREE.Points(particleGeo, particleMat);
-        scene.add(particles);
-
-        // --- MATERIALS ---
-        const matWhite = new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.2 });
-        const matWood = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 });
-        const matPanel = new THREE.MeshStandardMaterial({ color: 0x1f3b4d, roughness: 0.2, metalness: 0.8 });
-        const matBattEmpty = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
-        const matBattFill = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.3, emissive: 0x4caf50, emissiveIntensity: 0.2 });
-        const matLightOff = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.4 });
-        const matLightOn = new THREE.MeshStandardMaterial({ color: 0xffea00, emissive: 0xffea00, emissiveIntensity: 1.5 });
-
-        // --- NODE FACTORY ---
-        function createNode(type, x, z) {
+        // --- NATURAL PROCEDURAL SPAWNS ---
+        function spawnNaturalNode(type, x, z) {
             const key = `${x},${z}`;
-            if(GAME.gridMap.has(key)) return;
+            if(GAME.gridMap.has(key) || x === 0) return; // Don't spawn in river or overlapping
             GAME.gridMap.add(key);
 
             const group = new THREE.Group();
             group.position.set(x, 0, z);
+            let node = { type, group, x, z, health: 100 };
+
+            if (type === 'ntree') {
+                const trunk = new THREE.Mesh(GEOS.trunk, MATS.darkWood); trunk.position.y = 0.75; trunk.castShadow = true;
+                const leaves = new THREE.Mesh(GEOS.pine, MATS.plant); leaves.position.y = 2.5; leaves.castShadow = true;
+                group.add(trunk, leaves);
+            } else if (type === 'nboulder') {
+                const rock = new THREE.Mesh(GEOS.boulder, MATS.stone); rock.position.y = 0.4;
+                rock.rotation.set(Math.random(), Math.random(), Math.random()); rock.castShadow = true;
+                group.add(rock);
+            }
+            scene.add(group);
+            GAME.naturalNodes.push(node);
+        }
+
+        // Spawn a few ancient trees and rocks
+        for(let i=0; i<8; i++) {
+            let rx = (Math.floor(Math.random() * (GRID_EXTENT/GRID_SIZE)) * GRID_SIZE) * (Math.random()>0.5?1:-1);
+            let rz = (Math.floor(Math.random() * (GRID_EXTENT/GRID_SIZE)) * GRID_SIZE) * (Math.random()>0.5?1:-1);
+            if (rx !== 0) spawnNaturalNode(Math.random() > 0.4 ? 'ntree' : 'nboulder', rx, rz);
+        }
+
+
+        // --- PARTICLES ---
+        const pCount = 150; 
+        const pGeos = { spore: new THREE.BufferGeometry(), rain: new THREE.BufferGeometry(), spark: new THREE.BufferGeometry(), splash: new THREE.BufferGeometry(), bird: new THREE.BufferGeometry() };
+        const pPos = { spore: new Float32Array(pCount*3), rain: new Float32Array(pCount*3), spark: new Float32Array(50*3), splash: new Float32Array(50*3), bird: new Float32Array(20*3) };
+
+        for(let i=0; i<pCount*3; i++) { pPos.spore[i] = (Math.random()-0.5)*ISLAND_SIZE*1.5; pPos.rain[i] = (Math.random()-0.5)*ISLAND_SIZE*1.5; }
+        for(let i=0; i<50*3; i++) { pPos.spark[i] = 0; pPos.splash[i] = 0; } 
+        for(let i=0; i<20*3; i++) { pPos.bird[i] = 0; }
+
+        pGeos.spore.setAttribute('position', new THREE.BufferAttribute(pPos.spore, 3));
+        pGeos.rain.setAttribute('position', new THREE.BufferAttribute(pPos.rain, 3));
+        pGeos.spark.setAttribute('position', new THREE.BufferAttribute(pPos.spark, 3));
+        pGeos.splash.setAttribute('position', new THREE.BufferAttribute(pPos.splash, 3));
+        pGeos.bird.setAttribute('position', new THREE.BufferAttribute(pPos.bird, 3));
+
+        const matSpore = new THREE.PointsMaterial({ size: 0.2, color: 0xffffff, transparent: true, opacity: 0.6 });
+        const matRain = new THREE.PointsMaterial({ size: 0.15, color: 0x8bd4e8, transparent: true, opacity: 0 }); 
+        const matSpark = new THREE.PointsMaterial({ size: 0.25, color: 0xffea00, transparent: true, opacity: 0 }); 
+        const matSplash = new THREE.PointsMaterial({ size: 0.25, color: 0x3498db, transparent: true, opacity: 0 }); 
+        const matBird = new THREE.PointsMaterial({ size: 0.4, color: 0x2c3e50, transparent: true, opacity: 0 }); // Birds
+        
+        scene.add(new THREE.Points(pGeos.spore, matSpore)); scene.add(new THREE.Points(pGeos.rain, matRain));
+        scene.add(new THREE.Points(pGeos.spark, matSpark)); scene.add(new THREE.Points(pGeos.splash, matSplash));
+        const particlesBird = new THREE.Points(pGeos.bird, matBird); scene.add(particlesBird);
+
+        // ==========================================
+        // 🏗️ BUILDING FACTORY
+        // ==========================================
+        function createNode(type, x, z) {
+            const key = `${x},${z}`;
             
-            let nodeData = { type, group, x, z };
+            // Allow building Platforms on empty space (expanding grid)
+            if (type === 'platform') {
+                if(GAME.gridMap.has(key)) return; 
+                GAME.gridMap.add(key);
+                const plat = new THREE.Mesh(GEOS.platform, MATS.wood);
+                plat.position.set(x, -0.25, z); plat.receiveShadow = true; plat.castShadow = true;
+                scene.add(plat); raycastTargets.push(plat); // Add to raycast to build on top
+                GAME.wood -= 10; GAME.stone -= 10; // Simple cost
+                return;
+            }
+
+            if(GAME.gridMap.has(key)) return;
+            GAME.gridMap.add(key);
+
+            const group = new THREE.Group();
+            const yPos = (x === 0 && type !== 'pipe') ? -0.2 : 0; // Pipes can cross river
+            group.position.set(x, yPos, z);
+            let node = { type, group, x, z };
 
             if(type === 'solar') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), matWhite);
-                base.position.y = 0.1;
-                base.castShadow = true;
-                base.receiveShadow = true;
-                
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), matWhite);
-                pole.position.y = 0.5;
-                pole.castShadow = true;
-
-                const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 1.6), matPanel);
-                panel.position.y = 0.9;
-                panel.rotation.x = Math.PI / 6;
-                panel.castShadow = true;
-
-                group.add(base, pole, panel);
-                nodeData.panel = panel;
+                const b = new THREE.Mesh(GEOS.baseBox, MATS.white); b.position.y = 0.1; b.castShadow = true;
+                const p = new THREE.Mesh(GEOS.pole, MATS.white); p.position.y = 0.5; p.castShadow = true;
+                const pan = new THREE.Mesh(GEOS.panel, MATS.panel); pan.position.y = 0.9; pan.rotation.x = Math.PI / 6;
+                group.add(b, p, pan); node.panel = pan;
             } 
             else if(type === 'battery') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.4), matWhite);
-                base.position.y = 0.1;
-                base.castShadow = true;
-                base.receiveShadow = true;
-
-                const coreShell = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 16), matBattEmpty);
-                coreShell.position.y = 0.8;
-                coreShell.castShadow = true;
-                
-                const coreFill = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 1.2, 16), matBattFill);
-                coreFill.position.y = 0.8;
-                coreFill.scale.y = 0.01;
-                
-                group.add(base, coreShell, coreFill);
-                nodeData.fillMesh = coreFill;
+                const b = new THREE.Mesh(GEOS.baseLarge, MATS.white); b.position.y = 0.1; b.castShadow = true;
+                const shell = new THREE.Mesh(GEOS.battShell, MATS.battEmpty); shell.position.y = 0.8; shell.castShadow = true;
+                const fill = new THREE.Mesh(GEOS.battCore, MATS.battFill); fill.position.y = 0.8; fill.scale.y = 0.01;
+                group.add(b, shell, fill); node.fillMesh = fill;
+                GAME.batteryPositions.push(new THREE.Vector3(x, 1.5, z)); 
             }
             else if(type === 'light') {
-                const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), matWood);
-                base.position.y = 0.1;
-                base.castShadow = true;
-                base.receiveShadow = true;
-
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), matWood);
-                pole.position.y = 1.1;
-                pole.castShadow = true;
-
-                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), matLightOff);
-                bulb.position.y = 2.2;
-                
-                const pLight = new THREE.PointLight(0xffea00, 0, 8);
-                pLight.position.y = 2.2;
-
-                group.add(base, pole, bulb, pLight);
-                nodeData.bulb = bulb;
-                nodeData.pLight = pLight;
-                nodeData.isOn = false;
+                const b = new THREE.Mesh(GEOS.baseSmall, MATS.wood); b.position.y = 0.1; b.castShadow = true;
+                const p = new THREE.Mesh(GEOS.tallPole, MATS.wood); p.position.y = 1.1; p.castShadow = true;
+                const bulb = new THREE.Mesh(GEOS.bulb, MATS.lightOff); bulb.position.y = 2.2;
+                const pLight = new THREE.PointLight(0xffea00, 0, 8); pLight.position.y = 2.2;
+                group.add(b, p, bulb, pLight); node.bulb = bulb; node.pLight = pLight; node.isOn = false;
+            }
+            else if(type === 'wind') {
+                const b = new THREE.Mesh(GEOS.turbBase, MATS.turbine); b.position.y = 0.15; b.castShadow = true;
+                const t = new THREE.Mesh(GEOS.turbTower, MATS.turbine); t.position.y = 2.3; t.castShadow = true;
+                const nac = new THREE.Mesh(GEOS.turbNacelle, MATS.turbine); nac.position.set(0, 4.3, -0.2); nac.castShadow = true;
+                const rGroup = new THREE.Group(); rGroup.position.set(0, 4.3, 0.2);
+                rGroup.add(new THREE.Mesh(GEOS.turbHub, MATS.turbine));
+                for(let i=0; i<3; i++) {
+                    const bl = new THREE.Mesh(GEOS.turbBlade, MATS.turbine); bl.position.y = 0.9;
+                    const piv = new THREE.Group(); piv.rotation.z = (i * Math.PI*2)/3;
+                    piv.add(bl); rGroup.add(piv);
+                }
+                group.add(b, t, nac, rGroup); node.rotor = rGroup; rGroup.rotation.z = Math.random() * Math.PI;
+            }
+            else if (type === 'collector') {
+                const barrel = new THREE.Mesh(GEOS.barrel, MATS.wood); barrel.position.y = 0.5; barrel.castShadow = true;
+                const wFill = new THREE.Mesh(GEOS.barrelFill, MATS.water); wFill.position.y = 0.5; wFill.scale.y = 0.01;
+                group.add(barrel, wFill); node.fillMesh = wFill;
+                GAME.collectorPositions.push(new THREE.Vector3(x, 1.2, z));
+            }
+            else if (type === 'pump') {
+                const b = new THREE.Mesh(GEOS.baseBox, MATS.white); b.position.y = 0.25; b.castShadow = true;
+                const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.5), MATS.white);
+                pipe.position.y = 1.0; pipe.rotation.x = Math.PI/4; pipe.castShadow = true;
+                group.add(b, pipe);
+            }
+            else if (type === 'garden') {
+                const dirt = new THREE.Mesh(GEOS.gardenDirt, MATS.dirt); dirt.position.y = 0.1; dirt.castShadow = true; dirt.receiveShadow = true;
+                group.add(dirt); node.plants = [];
+                for(let i=0; i<4; i++) {
+                    const p = new THREE.Mesh(GEOS.plantSpore, MATS.plant);
+                    p.position.set((Math.random()-0.5)*1.2, 0.2, (Math.random()-0.5)*1.2);
+                    p.scale.set(0.1, 0.1, 0.1); group.add(p); node.plants.push(p); 
+                }
+                const leaf = new THREE.Mesh(GEOS.leaf, MATS.leaf); leaf.position.set(0, 1.5, 0); leaf.visible = false;
+                group.add(leaf); node.leaf = leaf; node.leafFallPhase = Math.random(); 
+            }
+            else if (type === 'composter' || type === 'wheel' || type === 'pipe' || type === 'biomass') {
+                const b = new THREE.Mesh(GEOS.baseBox, MATS.darkWood); b.position.y = 0.1; b.castShadow = true; group.add(b);
+                if (type === 'biomass') {
+                    const core = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.1), MATS.fireOff); core.position.set(0, 0.5, 0.6); 
+                    const pLight = new THREE.PointLight(0xff5500, 0, 8); pLight.position.set(0, 0.5, 1.0);
+                    group.add(core, pLight); node.core = core; node.pLight = pLight; node.isOn = false;
+                }
+                if (type === 'composter') {
+                    const fill = new THREE.Mesh(GEOS.baseBox, MATS.dirt); fill.position.y = 0.4; fill.scale.y = 0.01; group.add(fill); node.fillMesh = fill;
+                }
+            }
+            else if (type === 'dnsensor' || type === 'msensor') {
+                const b = new THREE.Mesh(GEOS.baseSmall, MATS.white); b.position.y = 0.1; b.castShadow = true;
+                const pole = new THREE.Mesh(GEOS.pole, MATS.white); pole.position.y = 0.5; pole.castShadow = true;
+                const dish = new THREE.Mesh(GEOS.sensorDish, MATS.sensor); dish.position.y = 0.9; dish.rotation.x = Math.PI/4;
+                group.add(b, pole, dish); node.dish = dish;
+            }
+            else if (type === 'electrolyzer') {
+                const b = new THREE.Mesh(GEOS.baseLarge, MATS.white); b.position.y = 0.1; b.castShadow = true;
+                const tank = new THREE.Mesh(GEOS.tankBody, MATS.h2Metal); tank.position.y = 0.8; tank.castShadow = true;
+                const bubbler = new THREE.Mesh(GEOS.plantSpore, MATS.water); bubbler.position.set(0, 1.6, 0);
+                group.add(b, tank, bubbler); node.bubbler = bubbler; node.isOn = false;
+            }
+            else if (type === 'h2tank') {
+                const b = new THREE.Mesh(GEOS.baseLarge, MATS.h2Metal); b.position.y = 0.1; b.castShadow = true;
+                const tank = new THREE.Mesh(GEOS.tankBody, MATS.white); tank.position.y = 0.8; tank.castShadow = true;
+                const cap = new THREE.Mesh(GEOS.tankCap, MATS.white); cap.position.y = 1.4; cap.castShadow = true;
+                group.add(b, tank, cap);
+            }
+            else if (type === 'fuelcell') {
+                const b = new THREE.Mesh(GEOS.baseLarge, MATS.h2Metal); b.position.y = 0.1; b.castShadow = true;
+                const core = new THREE.Mesh(GEOS.cellCore, MATS.h2Glow); core.position.y = 0.6;
+                const shell = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), MATS.white); shell.position.y = 0.6;
+                group.add(b, core, shell); node.core = core; node.isOn = false;
+            }
+            else if (type === 'mill' || type === 'quarry') {
+                const b = new THREE.Mesh(GEOS.baseLarge, MATS.wood); b.position.y = 0.1; b.castShadow = true;
+                const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16), MATS.stone);
+                blade.rotation.x = Math.PI/2; blade.position.set(0, 0.6, 0);
+                group.add(b, blade); node.blade = blade; node.isOn = false;
             }
 
             group.scale.set(0, 0, 0);
             scene.add(group);
-            GAME.nodes.push(nodeData);
+            GAME.nodes.push(node);
         }
 
-        // --- INTERACTION LOGIC (Touch/Click vs Drag) ---
+        // --- INTERACTION ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        
-        let pointerDownPos = new THREE.Vector2();
-        let pointerDownTime = 0;
-
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('pointerdown', (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                GAME.selectedType = btn.dataset.type;
-            });
-        });
+        let pDown = new THREE.Vector2(), pTime = 0;
 
         window.addEventListener('pointerdown', (e) => {
-            if(e.target.closest('#ui-container')) return;
-            pointerDownPos.set(e.clientX, e.clientY);
-            pointerDownTime = performance.now();
+            if(e.target.closest('#ui-container') || e.target.closest('#dev-toggle-container')) return;
+            pDown.set(e.clientX, e.clientY); pTime = performance.now();
         });
 
         window.addEventListener('pointerup', (e) => {
-            if(e.target.closest('#ui-container')) return;
-            
-            const dist = pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
-            const timeDiff = performance.now() - pointerDownTime;
-
-            // Differentiate between Tap (place object) and Drag (camera control)
-            if (dist > 10 || timeDiff > 300) return;
+            if(e.target.closest('#ui-container') || e.target.closest('#dev-toggle-container')) return;
+            if (pDown.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 10 || performance.now() - pTime > 300) return;
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(islandTop);
-
+            
+            const intersects = raycaster.intersectObjects(raycastTargets);
             if (intersects.length > 0) {
-                const pt = intersects[0].point;
+                let pt = intersects[0].point;
                 let nx = Math.round(pt.x / GRID_SIZE) * GRID_SIZE;
                 let nz = Math.round(pt.z / GRID_SIZE) * GRID_SIZE;
 
-                if(Math.abs(nx) <= GRID_EXTENT && Math.abs(nz) <= GRID_EXTENT) {
+                // For platform, we don't strictly check island bounds
+                if (GAME.selectedType === 'platform') {
+                    createNode(GAME.selectedType, nx, nz);
+                    return;
+                }
+
+                if(Math.abs(nx) <= GRID_EXTENT + 4 && Math.abs(nz) <= GRID_EXTENT + 4) { // Expanded for platforms
+                    const isRiverTool = (GAME.selectedType === 'pump' || GAME.selectedType === 'wheel');
+                    if (isRiverTool && nx !== 0) return; 
+                    if (!isRiverTool && nx === 0 && GAME.selectedType !== 'pipe') return; // Pipes can cross
                     createNode(GAME.selectedType, nx, nz);
                 }
             }
@@ -367,135 +544,322 @@
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- SIMULATION LOGIC ---
+        // ==========================================
+        // ⚙️ DECOUPLED SIMULATION LOGIC
+        // ==========================================
         const clock = new THREE.Clock();
-        const uiEnergy = document.getElementById('val-energy');
-        const uiCap = document.getElementById('val-cap');
+        let physicsAccumulator = 0;
+        const TICK_RATE = 1 / 10; 
+
+        const uiStats = {
+            e: document.getElementById('val-energy'), c: document.getElementById('val-cap'),
+            w: document.getElementById('val-water'), wc: document.getElementById('val-wcap'),
+            co: document.getElementById('val-compost'), coc: document.getElementById('val-ccap'),
+            h2: document.getElementById('val-h2'), h2c: document.getElementById('val-h2cap'),
+            wood: document.getElementById('val-wood'), stone: document.getElementById('val-stone')
+        };
         const uiBanner = document.getElementById('harmony-banner');
 
-        function updateEnergySystem(dt, sunIntensity) {
-            let generation = 0;
-            let consumption = 0;
-            let capacity = 0;
-            let lightCount = 0;
+        function updateSystems(dt, sunIntensity, isDay) {
+            let eGen = 0, eCon = 0, eCap = 0, lCount = 0;
+            let wGen = 0, wCon = 0, wCap = 0, gCount = 0;
+            let cCap = 0, bCount = 0;
+            let h2Gen = 0, h2Con = 0, h2Cap = 0;
+            let mCount = 0, qCount = 0; // Mill & Quarry
+
+            let effSun = sunIntensity * (1.0 - (GAME.weather.cloudCover * 0.6));
+            let isRaining = GAME.weather.rainIntensity > 0;
+
+            let hasDNSensor = GAME.nodes.some(n => n.type === 'dnsensor');
+            let hasMSensor = GAME.nodes.some(n => n.type === 'msensor');
+
+            // 1. Base Loops
+            GAME.nodes.forEach(n => {
+                if(n.type === 'battery') eCap += 100;
+                if(n.type === 'collector') wCap += 50;
+                if(n.type === 'pipe') wCap += 25; 
+                if(n.type === 'composter') cCap += 50;
+                if(n.type === 'h2tank') h2Cap += 500;
+                
+                if(n.type === 'solar') eGen += 10 * effSun;
+                if(n.type === 'wind')  eGen += 8 * GAME.weather.windSpeed;
+                if(n.type === 'wheel') wGen += 3; 
+
+                if(n.type === 'light') { lCount++; if (!(hasDNSensor && isDay)) eCon += 4; }
+                if(n.type === 'garden') { wCon += 2; gCount++; }
+                if(n.type === 'biomass') { bCount++; }
+                if(n.type === 'mill') { mCount++; n.isOn = false; }
+                if(n.type === 'quarry') { qCount++; n.isOn = false; }
+            });
+            
+            GAME.capacity = eCap; GAME.waterCapacity = wCap; 
+            GAME.compostCapacity = cCap; GAME.h2Capacity = h2Cap;
+
+            // 2. Pre-resolve Water
+            let hasPowerForPumpCheck = (GAME.energy > 0 || eGen > 0); 
+            let pumpExists = false;
+            let waterIsFull = (GAME.waterCapacity > 0 && GAME.water / GAME.waterCapacity > 0.8);
 
             GAME.nodes.forEach(n => {
-                if(n.type === 'solar') generation += 10 * sunIntensity;
-                if(n.type === 'battery') capacity += 100;
-                if(n.type === 'light') {
-                    consumption += 4;
-                    lightCount++;
+                if(n.type === 'pump') {
+                    pumpExists = true;
+                    if (!(hasMSensor && waterIsFull)) { eCon += 5; if (hasPowerForPumpCheck) wGen += 10; }
+                }
+                if(n.type === 'collector' && isRaining) wGen += 5 * GAME.weather.rainIntensity;
+            });
+
+            // 3. Resolve Compost & Biomass
+            let cGen = (GAME.water > 0 && gCount > 0) ? (gCount * 1.0) : 0; 
+            let cCon = bCount * 2.0; 
+            let netC = cGen - cCon;
+            GAME.compost = Math.max(0, Math.min(GAME.compostCapacity, GAME.compost + netC * dt));
+            let hasCompost = GAME.compost > 0 || cGen >= cCon;
+            if (hasCompost && bCount > 0) eGen += bCount * 15.0; 
+
+            // 4. Resolve Advanced Chemistry
+            let isGridDeficit = (eGen < eCon) && GAME.energy < (GAME.capacity * 0.2);
+            let isH2Full = (GAME.h2Capacity > 0 && GAME.h2 >= GAME.h2Capacity);
+            
+            GAME.nodes.forEach(n => {
+                if(n.type === 'electrolyzer') {
+                    if (!isH2Full && GAME.water > 5 && GAME.energy > 20) { eCon += 20; wCon += 5; h2Gen += 5; n.isOn = true; } else { n.isOn = false; }
+                }
+                if(n.type === 'fuelcell') {
+                    if (isGridDeficit && GAME.h2 > 5) { h2Con += 5; eGen += 10; wGen += 2; n.isOn = true; } else { n.isOn = false; }
                 }
             });
 
-            GAME.capacity = capacity;
+            // 5. Apply Core Logic
+            let netW = wGen - wCon;
+            GAME.water = Math.max(0, Math.min(GAME.waterCapacity, GAME.water + netW * dt));
+            let hasWater = GAME.water > 0 || wGen >= wCon;
+            if(GAME.waterCapacity === 0 && wGen < wCon) hasWater = false;
+            if(gCount === 0) hasWater = true;
+
+            let netH2 = h2Gen - h2Con;
+            GAME.h2 = Math.max(0, Math.min(GAME.h2Capacity, GAME.h2 + netH2 * dt));
+
+            let netE = eGen - eCon;
+            GAME.energy = Math.max(0, Math.min(GAME.capacity, GAME.energy + netE * dt));
+            let hasPower = GAME.energy > 0 || eGen >= eCon;
+            if(GAME.capacity === 0 && eGen < eCon) hasPower = false;
+            if(lCount === 0) hasPower = true;
+
+            // 6. Resolve Materials & Ecology (Phase 1 Logic)
+            let treeCount = GAME.naturalNodes.filter(n => n.type === 'ntree').length;
+            let boulderCount = GAME.naturalNodes.filter(n => n.type === 'nboulder').length;
             
-            let net = generation - consumption;
-            GAME.energy += net * dt;
-
-            if(GAME.energy > GAME.capacity) GAME.energy = GAME.capacity;
-            if(GAME.energy < 0) GAME.energy = 0;
-
-            let hasPower = GAME.energy > 0 || generation >= consumption;
-            if(GAME.capacity === 0 && generation < consumption) hasPower = false; 
-            if(lightCount === 0) hasPower = true; 
-
-            GAME.nodes.forEach(n => {
-                if(n.type === 'battery') {
-                    let fillRatio = capacity > 0 ? GAME.energy / capacity : 0;
-                    n.fillMesh.scale.y += (Math.max(0.01, fillRatio) - n.fillMesh.scale.y) * 0.1;
-                    n.fillMesh.position.y = 0.2 + (1.2 * n.fillMesh.scale.y) / 2;
-                }
-                if(n.type === 'light') {
-                    let shouldBeOn = hasPower;
-                    if(shouldBeOn !== n.isOn) {
-                        n.isOn = shouldBeOn;
-                        n.bulb.material = shouldBeOn ? matLightOn : matLightOff;
-                        n.pLight.intensity = shouldBeOn ? 1.5 : 0;
+            if (treeCount > 0 && mCount > 0) {
+                GAME.wood += (mCount * 2) * dt;
+                GAME.woodStrain += (mCount * 2) * dt;
+                GAME.nodes.forEach(n => { if(n.type==='mill') n.isOn = true; });
+                if (GAME.woodStrain >= 100) {
+                    GAME.woodStrain = 0;
+                    let tIndex = GAME.naturalNodes.findIndex(n => n.type === 'ntree');
+                    if(tIndex > -1) {
+                        let t = GAME.naturalNodes[tIndex];
+                        scene.remove(t.group); GAME.gridMap.delete(`${t.x},${t.z}`);
+                        GAME.naturalNodes.splice(tIndex, 1);
                     }
                 }
+            }
+            if (boulderCount > 0 && qCount > 0) {
+                GAME.stone += (qCount * 2) * dt;
+                GAME.stoneStrain += (qCount * 2) * dt;
+                GAME.nodes.forEach(n => { if(n.type==='quarry') n.isOn = true; });
+                if (GAME.stoneStrain >= 100) {
+                    GAME.stoneStrain = 0;
+                    let bIndex = GAME.naturalNodes.findIndex(n => n.type === 'nboulder');
+                    if(bIndex > -1) {
+                        let b = GAME.naturalNodes[bIndex];
+                        scene.remove(b.group); GAME.gridMap.delete(`${b.x},${b.z}`);
+                        GAME.naturalNodes.splice(bIndex, 1);
+                    }
+                }
+            }
+
+            // Ecology Score Calculation
+            GAME.ecology = (treeCount * 2) + (hasWater ? gCount : 0) - mCount - qCount;
+            matBird.opacity = GAME.ecology > 5 ? Math.min(1.0, matBird.opacity + 0.05) : Math.max(0, matBird.opacity - 0.05);
+
+            // -- PROGRESSION CHECKS --
+            GAME.isWastingEnergy = (netE > 0 && GAME.capacity > 0 && GAME.energy >= GAME.capacity);
+            GAME.isWastingWater = (netW > 0 && GAME.waterCapacity > 0 && GAME.water >= GAME.waterCapacity);
+            
+            if (GAME.isWastingEnergy && !KNOWLEDGE.understands_efficiency) { GAME.timers.waste += dt; if (GAME.timers.waste > 5) { KNOWLEDGE.understands_efficiency = true; updateUI(); }}
+            if (GAME.isWastingEnergy && GAME.isWastingWater && !KNOWLEDGE.understands_electrolysis) { GAME.timers.chem += dt; if (GAME.timers.chem > 6) { KNOWLEDGE.understands_electrolysis = true; updateUI(); }}
+            if (lCount > 0 && !hasPower && !isDay && !KNOWLEDGE.understands_storage) { GAME.timers.blackout += dt; if (GAME.timers.blackout > 3) { KNOWLEDGE.understands_storage = true; updateUI(); }}
+            if (KNOWLEDGE.understands_storage && !KNOWLEDGE.understands_wind && GAME.weather.cloudCover > 0.4) { GAME.timers.wind += dt; if (GAME.timers.wind > 4) { KNOWLEDGE.understands_wind = true; updateUI(); }}
+            if (!KNOWLEDGE.understands_rain && isRaining) { GAME.timers.rain += dt; if (GAME.timers.rain > 3) { KNOWLEDGE.understands_rain = true; updateUI(); }}
+            if (!KNOWLEDGE.understands_agriculture && GAME.nodes.some(n => n.type === 'collector' && GAME.water > 5)) { KNOWLEDGE.understands_agriculture = true; updateUI(); }
+            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_pumping && gCount > 0) { GAME.timers.drought += dt; if (GAME.timers.drought > 5) { KNOWLEDGE.understands_pumping = true; updateUI(); }}
+            if (KNOWLEDGE.understands_pumping && !KNOWLEDGE.understands_kinetic_energy && pumpExists) { GAME.timers.river += dt; if (GAME.timers.river > 5) { KNOWLEDGE.understands_kinetic_energy = true; updateUI(); }}
+            if (KNOWLEDGE.understands_agriculture && !KNOWLEDGE.understands_decay && gCount > 0 && hasWater) { GAME.timers.decay += dt; if (GAME.timers.decay > 6) { KNOWLEDGE.understands_decay = true; updateUI(); }}
+            
+            // NEW MATERIALS DISCOVERY
+            if (KNOWLEDGE.understands_decay && GAME.compost >= 10 && !KNOWLEDGE.understands_materials && (treeCount > 0 || boulderCount > 0)) {
+                GAME.timers.mats += dt;
+                if (GAME.timers.mats > 5) { KNOWLEDGE.understands_materials = true; updateUI(); }
+            }
+
+            // UI State Sync
+            GAME.nodes.forEach(n => {
+                if(n.type === 'biomass') {
+                    let isBurning = (hasCompost && eCon > 0); 
+                    if(isBurning !== n.isOn) { n.isOn = isBurning; n.core.material = isBurning ? MATS.fireOn : MATS.fireOff; n.pLight.intensity = isBurning ? 1.5 : 0; }
+                }
+                if(n.type === 'light') {
+                    let expectedOn = hasPower && !(hasDNSensor && isDay); 
+                    if(expectedOn !== n.isOn) { n.isOn = expectedOn; n.bulb.material = expectedOn ? MATS.lightOn : MATS.lightOff; n.pLight.intensity = expectedOn ? 1.5 : 0; }
+                }
+                if(n.type === 'fuelcell') { n.core.material = n.isOn ? MATS.h2Glow : MATS.fireOff; }
+                if(n.type === 'garden') n.hasWater = hasWater; 
             });
 
-            uiEnergy.innerText = Math.floor(GAME.energy);
-            uiCap.innerText = Math.floor(GAME.capacity);
+            uiStats.e.innerText = Math.floor(GAME.energy); uiStats.c.innerText = Math.floor(GAME.capacity);
+            uiStats.w.innerText = Math.floor(GAME.water); uiStats.wc.innerText = Math.floor(GAME.waterCapacity);
+            uiStats.co.innerText = Math.floor(GAME.compost); uiStats.coc.innerText = Math.floor(GAME.compostCapacity);
+            uiStats.h2.innerText = Math.floor(GAME.h2); uiStats.h2c.innerText = Math.floor(GAME.h2Capacity);
+            uiStats.wood.innerText = Math.floor(GAME.wood); uiStats.stone.innerText = Math.floor(GAME.stone);
 
-            if(lightCount > 0 && hasPower) {
+            if(lCount > 0 && gCount > 0 && hasPower && hasWater) {
                 GAME.stableTime += dt;
-                if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) {
-                    GAME.harmonyReached = true;
-                    uiBanner.style.opacity = 1;
-                }
-            } else if (lightCount > 0 && !hasPower) {
-                GAME.stableTime = 0; 
-            }
+                if(GAME.stableTime >= CYCLE_DURATION && !GAME.harmonyReached) { GAME.harmonyReached = true; uiBanner.style.opacity = 1; }
+            } else { GAME.stableTime = 0; }
         }
 
+        // ==========================================
+        // 🎥 SMOOTH RENDER LOOP
+        // ==========================================
         function animate() {
             requestAnimationFrame(animate);
-            const dt = Math.min(clock.getDelta(), 0.1); 
-
-            controls.update(); // Update orbit controls
-
-            GAME.nodes.forEach(n => {
-                if(n.group.scale.x < 1) {
-                    n.group.scale.x += dt * 4;
-                    n.group.scale.y += dt * 4;
-                    n.group.scale.z += dt * 4;
-                    if(n.group.scale.x > 1) n.group.scale.set(1,1,1);
-                }
-            });
-
-            GAME.time += dt;
-            let cycleProgress = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
-            let angle = cycleProgress * Math.PI * 2 - (Math.PI / 2); 
-
-            sun.position.x = Math.cos(angle) * 50;
-            sun.position.y = Math.sin(angle) * 50;
-            sun.position.z = Math.sin(angle) * 15; 
-
-            moon.position.x = -sun.position.x;
-            moon.position.y = -sun.position.y;
-            moon.position.z = -sun.position.z;
-
-            let sunHeight = Math.max(0, Math.sin(angle));
-            sun.intensity = sunHeight * 1.5;
+            const rawDt = Math.min(clock.getDelta(), 0.1); 
             
+            physicsAccumulator += rawDt;
+            while(physicsAccumulator >= TICK_RATE) {
+                let cycle = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
+                let angle = cycle * Math.PI * 2 - (Math.PI / 2); 
+                updateSystems(TICK_RATE, Math.max(0, Math.sin(angle)), sun.position.y > 0);
+                physicsAccumulator -= TICK_RATE;
+            }
+
+            controls.update(); 
+            GAME.time += rawDt;
+            GAME.weather.cloudCover = (Math.sin(GAME.time / 10) + 1) / 2 * (Math.sin(GAME.time / 22) + 1) / 2; 
+            GAME.weather.windSpeed = ((Math.cos(GAME.time / 8) + 1) / 2 * (Math.sin(GAME.time / 15) + 1) / 2) * 0.9 + 0.1;
+            GAME.weather.rainIntensity = Math.max(0, (GAME.weather.cloudCover - 0.65) / 0.35);
+
+            let cycle = (GAME.time % CYCLE_DURATION) / CYCLE_DURATION;
+            let angle = cycle * Math.PI * 2 - (Math.PI / 2); 
+            sun.position.set(Math.cos(angle)*50, Math.sin(angle)*50, Math.sin(angle)*15); 
+            moon.position.set(-sun.position.x, -sun.position.y, -sun.position.z);
+
             let isDay = sun.position.y > 0;
-            let targetBg = isDay ? colDay : colNight;
-            scene.background.lerp(targetBg, 0.02);
-            scene.fog.color.lerp(targetBg, 0.02);
-            ambientLight.intensity = isDay ? 0.4 + (sunHeight * 0.2) : 0.2;
+            let dayCol = colDayClear.clone().lerp(colDayCloud, GAME.weather.cloudCover);
+            let targetBg = isDay ? dayCol : colNight;
+            scene.background.lerp(targetBg, 0.05); scene.fog.color.lerp(targetBg, 0.05);
+            
+            let sHeight = Math.max(0, Math.sin(angle));
+            sun.intensity = sHeight * 1.5 * (1.0 - (GAME.weather.cloudCover * 0.6));
+            ambientLight.intensity = isDay ? 0.4 + (sHeight * 0.2) * (1.0 - GAME.weather.cloudCover * 0.3) : 0.2;
 
             GAME.nodes.forEach(n => {
-                if(n.type === 'solar' && isDay) {
-                    n.panel.lookAt(sun.position);
+                if(n.group.scale.x < 1) { let s = Math.min(1, n.group.scale.x + rawDt * 4); n.group.scale.set(s,s,s); }
+                if(n.type === 'solar' && isDay) n.panel.lookAt(sun.position);
+                if(n.type === 'wind') n.rotor.rotation.z -= rawDt * GAME.weather.windSpeed * 8;
+                if(n.type === 'wheel') n.rotor.rotation.x -= rawDt * 2;
+                if(n.type === 'dnsensor' || n.type === 'msensor') n.dish.rotation.y += rawDt;
+                if(n.type === 'electrolyzer' && n.isOn) n.bubbler.rotation.y += rawDt * 5;
+                if((n.type === 'mill' || n.type === 'quarry') && n.isOn) n.blade.rotation.y += rawDt * 10;
+                
+                if(n.fillMesh) {
+                    let cap = (n.type==='battery')?GAME.capacity:(n.type==='collector'||n.type==='pipe')?GAME.waterCapacity:GAME.compostCapacity;
+                    let val = (n.type==='battery')?GAME.energy:(n.type==='collector'||n.type==='pipe')?GAME.water:GAME.compost;
+                    let fill = cap > 0 ? val / cap : 0;
+                    n.fillMesh.scale.y += (Math.max(0.01, fill) - n.fillMesh.scale.y) * 0.1;
+                    let bOff = (n.type==='composter') ? 0.05 : (n.type==='battery') ? 0.2 : 0.1;
+                    let bMult = (n.type==='composter') ? 0.7 : (n.type==='battery') ? 1.2 : 0.9;
+                    n.fillMesh.position.y = bOff + (bMult * n.fillMesh.scale.y) / 2;
+                }
+
+                if(n.type === 'garden') {
+                    n.plants.forEach(p => {
+                        let targetScale = n.hasWater ? 1.0 : 0.1;
+                        p.scale.x += (targetScale - p.scale.x) * (rawDt * 2); p.scale.y = p.scale.z = p.scale.x; p.position.y = 0.2 + (p.scale.y * 0.2); 
+                    });
+                    if (n.hasWater) {
+                        n.leaf.visible = true; n.leafFallPhase += rawDt * 0.5; 
+                        if (n.leafFallPhase > 1) n.leafFallPhase = 0;
+                        n.leaf.position.y = 1.5 - (n.leafFallPhase * 1.4);
+                        n.leaf.rotation.z = Math.sin(n.leafFallPhase * 10) * 0.5; n.leaf.rotation.x = Math.cos(n.leafFallPhase * 8) * 0.5;
+                    } else { n.leaf.visible = false; }
                 }
             });
 
-            updateEnergySystem(dt, sunHeight);
+            // Particles
+            const sPos = particlesSpore.geometry.attributes.position.array;
+            const rPos = particlesRain.geometry.attributes.position.array;
+            for(let i=0; i<pCount; i++) {
+                let sy = sPos[i*3+1] + rawDt * 0.5; let sx = sPos[i*3] + rawDt * GAME.weather.windSpeed * 15; 
+                if(sy > 20 || sx > (ISLAND_SIZE * 0.8)) { sy = -5; sx = -(ISLAND_SIZE * 0.8); sPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5; }
+                sPos[i*3] = sx; sPos[i*3+1] = sy;
 
-            const positions = particles.geometry.attributes.position.array;
-            for(let i=0; i<particleCount; i++) {
-                let y = positions[i*3+1];
-                y += dt * 0.5;
-                if(y > 20) {
-                    y = -5;
-                    positions[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
-                    positions[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.2;
-                }
-                positions[i*3+1] = y;
+                let ry = rPos[i*3+1] - rawDt * 30; 
+                if(ry < -2) { ry = 20 + Math.random() * 10; rPos[i*3] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5; rPos[i*3+2] = (Math.random() - 0.5) * ISLAND_SIZE * 1.5; }
+                rPos[i*3+1] = ry;
             }
-            particles.geometry.attributes.position.needsUpdate = true;
+            particlesSpore.geometry.attributes.position.needsUpdate = true;
+            particlesRain.geometry.attributes.position.needsUpdate = true;
+            matRain.opacity = GAME.weather.rainIntensity * 0.6; 
+
+            if (GAME.isWastingEnergy && GAME.batteryPositions.length > 0) {
+                matSpark.opacity = 0.8;
+                const spPos = particlesSpark.geometry.attributes.position.array;
+                for(let i=0; i<50; i++) {
+                    let sy = spPos[i*3+1] + rawDt * 5; 
+                    if(sy > 4 || sy === 0) { 
+                        let target = GAME.batteryPositions[Math.floor(Math.random() * GAME.batteryPositions.length)];
+                        sy = target.y; spPos[i*3] = target.x + (Math.random() - 0.5); spPos[i*3+2] = target.z + (Math.random() - 0.5); 
+                    }
+                    spPos[i*3+1] = sy;
+                }
+                particlesSpark.geometry.attributes.position.needsUpdate = true;
+            } else { matSpark.opacity = 0; }
+
+            if (GAME.isWastingWater && GAME.collectorPositions.length > 0) {
+                matSplash.opacity = 0.8;
+                const splPos = particlesSplash.geometry.attributes.position.array;
+                for(let i=0; i<50; i++) {
+                    let sy = splPos[i*3+1] + rawDt * 5; 
+                    if(sy > 4 || sy === 0) { 
+                        let target = GAME.collectorPositions[Math.floor(Math.random() * GAME.collectorPositions.length)];
+                        sy = target.y; splPos[i*3] = target.x + (Math.random() - 0.5); splPos[i*3+2] = target.z + (Math.random() - 0.5); 
+                    }
+                    splPos[i*3+1] = sy;
+                }
+                particlesSplash.geometry.attributes.position.needsUpdate = true;
+            } else { matSplash.opacity = 0; }
+
+            // Ecology Birds
+            if (matBird.opacity > 0) {
+                const bPos = particlesBird.geometry.attributes.position.array;
+                for(let i=0; i<20; i++) {
+                    // Simple flocking math
+                    let t = GAME.time + i;
+                    bPos[i*3] = Math.cos(t * 0.5) * (15 + Math.sin(t * 0.2) * 5); // X orbit
+                    bPos[i*3+1] = 12 + Math.sin(t * 1.5) * 2; // Y bobbing
+                    bPos[i*3+2] = Math.sin(t * 0.5) * (15 + Math.cos(t * 0.2) * 5); // Z orbit
+                }
+                particlesBird.geometry.attributes.position.needsUpdate = true;
+            }
 
             renderer.render(scene, camera);
         }
 
         animate();
-
     </script>
 </body>
 </html>
